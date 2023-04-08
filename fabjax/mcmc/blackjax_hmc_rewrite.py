@@ -88,7 +88,7 @@ def velocity_verlet(
         )
 
         logdensity_q, logdensity_q_grad = logdensity_q_and_grad_fn(position)
-        logdensity_p, logdensity_p_grad = logdensity_q_and_grad_fn(position)
+        logdensity_p, logdensity_p_grad = logdensity_p_and_grad_fn(position)
         state = IntegratorState(position=position, momentum=momentum, log_q=logdensity_q,
                                 log_p=logdensity_p, grad_log_q=logdensity_q_grad, grad_log_p=logdensity_p_grad,
                                 beta=state.beta)
