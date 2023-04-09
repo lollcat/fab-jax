@@ -1,10 +1,9 @@
 """Rewrite of Blackjax HMC kernel for fab preventing re-evaluation of p and q."""
-from typing import Callable, NamedTuple, Tuple, Union
+from typing import Callable, NamedTuple, Tuple, Union, Optional
 
 import chex
 import jax
 
-import blackjax.mcmc.integrators as integrators
 import blackjax.mcmc.metrics as metrics
 import blackjax.mcmc.proposal as proposal
 import blackjax.mcmc.trajectory as trajectory
@@ -13,7 +12,7 @@ from blackjax.types import Array, PRNGKey, PyTree
 
 from blackjax.mcmc.integrators import EuclideanKineticEnergy
 
-from fabjax.base import get_grad_intermediate_log_prob, get_intermediate_log_prob, Point
+from fabjax.sampling.base import get_grad_intermediate_log_prob, get_intermediate_log_prob, Point
 
 
 class IntegratorState(NamedTuple):
@@ -24,14 +23,16 @@ class IntegratorState(NamedTuple):
     grad_log_q: chex.Array
     grad_log_p: chex.Array
     beta: chex.Array
+    alpha: float
 
     @property
     def logdensity(self) -> float:
-        return get_intermediate_log_prob(self.log_q, self.log_p, self.beta)
+        return get_intermediate_log_prob(log_q=self.log_q, log_p=self.log_p, beta=self.beta, alpha=self.alpha)
 
     @property
     def logdensity_grad(self) -> PyTree:
-        return get_grad_intermediate_log_prob(self.grad_log_q, self.grad_log_p, self.beta)
+        return get_grad_intermediate_log_prob(grad_log_q=self.grad_log_q, grad_log_p=self.grad_log_p,
+                                              beta=self.beta, alpha=self.alpha)
 
 
 EuclideanIntegrator = Callable[[IntegratorState, float], IntegratorState]
@@ -47,14 +48,16 @@ class HMCState(NamedTuple):
     grad_log_q: chex.Array
     grad_log_p: chex.Array
     beta: chex.Array
+    alpha: float
 
     @property
     def logdensity(self) -> float:
-        return get_intermediate_log_prob(self.log_q, self.log_p, self.beta)
+        return get_intermediate_log_prob(log_q=self.log_q, log_p=self.log_p, beta=self.beta, alpha=self.alpha)
 
     @property
     def logdensity_grad(self) -> PyTree:
-        return get_grad_intermediate_log_prob(self.grad_log_q, self.grad_log_p, self.beta)
+        return get_grad_intermediate_log_prob(grad_log_q=self.grad_log_q, grad_log_p=self.grad_log_p,
+                                              beta=self.beta, alpha=self.alpha)
 
 
 def velocity_verlet(
@@ -91,7 +94,7 @@ def velocity_verlet(
         logdensity_p, logdensity_p_grad = logdensity_p_and_grad_fn(position)
         state = IntegratorState(position=position, momentum=momentum, log_q=logdensity_q,
                                 log_p=logdensity_p, grad_log_q=logdensity_q_grad, grad_log_p=logdensity_p_grad,
-                                beta=state.beta)
+                                beta=state.beta, alpha=state.alpha)
         logdensity_grad = state.logdensity_grad
 
         momentum = jax.tree_util.tree_map(
@@ -116,9 +119,9 @@ class HMCInfo(NamedTuple):
     num_integration_steps: int
 
 
-def init(point: Point, beta: chex.Array):
+def init(point: Point, beta: chex.Array, alpha: float):
     return HMCState(position=point.x, log_p=point.log_p, log_q=point.log_q, beta=beta,
-                    grad_log_p=point.grad_log_p, grad_log_q=point.grad_log_q)
+                    grad_log_p=point.grad_log_p, grad_log_q=point.grad_log_q, alpha=alpha)
 
 
 def kernel(
@@ -151,8 +154,7 @@ def kernel(
 
         key_momentum, key_integrator = jax.random.split(rng_key, 2)
 
-        position, log_q, log_p, beta, grad_log_q, grad_log_p = state
-        momentum = momentum_generator(key_momentum, position)
+        momentum = momentum_generator(key_momentum, state.position)
 
         integrator_state = IntegratorState(**state._asdict(), momentum=momentum)
         proposal, info = proposal_generator(key_integrator, integrator_state)

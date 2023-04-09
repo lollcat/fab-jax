@@ -1,4 +1,4 @@
-from typing import Tuple, Callable, NamedTuple, Optional
+from typing import Tuple, NamedTuple, Optional
 from functools import partial
 
 import chex
@@ -7,8 +7,8 @@ import jax.random
 from blackjax.adaptation.step_size import dual_averaging_adaptation
 
 
-from fabjax.base import TransitionOperator, Point, LogProbFn
-from fabjax.mcmc.blackjax_hmc_rewrite import kernel as hmc_kernel, init as hmc_init
+from fabjax.sampling.base import TransitionOperator, Point, LogProbFn
+from fabjax.sampling.mcmc.blackjax_hmc_rewrite import kernel as hmc_kernel, init as hmc_init
 
 
 class HMCState(NamedTuple):
@@ -23,7 +23,6 @@ def build_blackjax_hmc(
                  n_inner_steps: int = 5,
                  init_step_size: float = 1e-4,
                  adapt_step_size: bool = True,
-                 alpha: float = 2.0,
                  target_p_accept: float = 0.65
 ) -> TransitionOperator:
     # TODO: Use alpha as an argument.
@@ -31,26 +30,28 @@ def build_blackjax_hmc(
     one_step = hmc_kernel(divergence_threshold=1000)
 
     if adapt_step_size:
-        adapt_init, adapt_update, _ = dual_averaging_adaptation(target_p_accept, )
+        adapt_init, adapt_update, _ = dual_averaging_adaptation(target_p_accept)
 
 
     def init(key: chex.PRNGKey) -> HMCState:
         inverse_mass_matrix = jnp.ones(dim)
         adaption_state = adapt_init(init_step_size) if adapt_step_size else None
+        adaption_state = jax.tree_map(jnp.asarray, adaption_state)
         return HMCState(key, inverse_mass_matrix, adaption_state)
 
     def step(point: Point,
              transition_operator_state: HMCState,
              beta: chex.Array,
+             alpha: float,
              log_q_fn: LogProbFn,
              log_p_fn: LogProbFn,
              ) -> \
-            Tuple[Point, chex.ArrayTree, dict]:
+            Tuple[Point, HMCState, dict]:
 
         chex.assert_rank(point.x, 2)
         batch_size = point.x.shape[0]
 
-        hmc_state = jax.vmap(hmc_init, in_axes=(0, None))(point, beta)
+        hmc_state = jax.vmap(hmc_init, in_axes=(0, None, None))(point, beta, alpha)
 
         def scan_fn(body, xs):
             key = xs
@@ -78,9 +79,14 @@ def build_blackjax_hmc(
             (hmc_state, transition_operator_state),
             jax.random.split(subkey, n_outer_steps))
 
+        # Info for logging
         info = {f"mean_acceptance_rate": jnp.mean(infos.acceptance_rate)}
+        step_size = jnp.exp(transition_operator_state.adaption_state.log_step_size) if adapt_step_size else \
+            init_step_size
+        info.update(step_size=step_size)
+
         point_kwargs = hmc_state._asdict()
-        del(point_kwargs['beta'])
+        del(point_kwargs['beta']); del(point_kwargs['alpha'])
         point_kwargs["x"] = point_kwargs["position"]
         del(point_kwargs['position'])
         point = Point(**point_kwargs)

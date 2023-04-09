@@ -3,8 +3,8 @@ import jax
 import distrax
 import matplotlib.pyplot as plt
 
-from fabjax.mcmc.hmc import build_blackjax_hmc
-from fabjax.base import Point, create_point
+from fabjax.sampling.mcmc.hmc import build_blackjax_hmc
+from fabjax.sampling.base import create_point
 from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair
 
 
@@ -16,6 +16,7 @@ def test_hmc_produces_good_samples():
     batch_size = 1000
     n_outer_steps = 100
     target_p_accept = 0.65
+    alpha = 2.
 
     hmc_transition_operator = build_blackjax_hmc(dim=2, n_outer_steps=n_outer_steps,
                                                  init_step_size=1e-4)
@@ -35,7 +36,8 @@ def test_hmc_produces_good_samples():
     hmc_state = hmc_transition_operator.init(key)
 
     # Run MCMC chain.
-    x_new, hmc_state, info = hmc_transition_operator.step(points, hmc_state, beta, dist_q.log_prob, dist_p.log_prob)
+    x_new, hmc_state, info = hmc_transition_operator.step(points, hmc_state, beta, alpha,
+                                                          dist_q.log_prob, dist_p.log_prob)
 
     # Visualise samples.
     bound = 10

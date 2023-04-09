@@ -37,10 +37,12 @@ class Point(NamedTuple):
 
 TransitionOperatorState = chex.ArrayTree
 Beta = chex.Array
+Alpha = float
 
 class TransitionOperator(NamedTuple):
     init: Callable[[chex.PRNGKey], chex.ArrayTree]
-    step: Callable[[Point, TransitionOperatorState, Beta], Tuple[Point, Dict]]
+    step: Callable[[Point, TransitionOperatorState, Beta, Alpha, LogProbFn, LogProbFn],
+            Tuple[Point, TransitionOperatorState, Dict]]
     # Whether the transition operator uses gradients (True for HMC, False for metropolis).
     uses_grad: bool = True
 
@@ -68,6 +70,7 @@ class AISForwardFn(Protocol):
 def create_point(x: chex.Array, log_q_fn: LogProbFn, log_p_fn: LogProbFn,
                  with_grad: bool = True) -> Point:
     """Create an instance of a `Point` which contains the necessary info on a point for MCMC."""
+    chex.assert_rank(x, 1)
     if with_grad:
         log_q, grad_log_q = jax.value_and_grad(log_q_fn)(x)
         log_p, grad_log_p = jax.value_and_grad(log_p_fn)(x)
@@ -78,9 +81,10 @@ def create_point(x: chex.Array, log_q_fn: LogProbFn, log_p_fn: LogProbFn,
 
 
 def get_intermediate_log_prob(
-        log_q: chex.Array, log_p: chex.Array,
+        log_q: chex.Array,
+        log_p: chex.Array,
         beta: chex.Array,
-        alpha: chex.Array = jnp.array(2.0),
+        alpha: Union[chex.Array, float],
         ) -> chex.Array:
     """Get log prob of point according to intermediate AIS distribution.
     Set AIS final target g=p^\alpha q^(1-\alpha). log_prob = (1 - beta) log_q + beta log_g.
@@ -93,7 +97,7 @@ def get_grad_intermediate_log_prob(
         grad_log_q: chex.Array,
         grad_log_p: chex.Array,
         beta: chex.Array,
-        alpha: chex.Array = jnp.array(2.0)
+        alpha: Union[chex.Array, float],
 ) -> chex.Array:
     """Get gradient of intermediate AIS distribution for a point.
     Set AIS final target g=p^\alpha q^(1-\alpha). log_prob = (1 - beta) log_q + beta log_g.
