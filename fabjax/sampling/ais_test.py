@@ -8,11 +8,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from molboil.utils.loggers import ListLogger
+from molboil.utils.plotting import plot_history
+
 from fabjax.sampling.mcmc.hmc import build_blackjax_hmc
 from fabjax.sampling.ais import build_ais
 from fabjax.sampling.resampling import simple_resampling
-from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair, plot_history
-from fabjax.utils.loggers import ListLogger
+from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair
 
 
 def analytic_alpha_2_div(mean_q: chex.Array, mean_p: chex.Array):

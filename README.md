@@ -12,3 +12,8 @@ Additionally, we have
  - flow: create normalizing flows (using distrax)
  - targets: energy functions for training
  - train: training script for fab (not modular, but can be copy and pasted and adapted)
+
+
+# TODO:
+ - prioritised buffer
+ - make nice target distribution abstractions

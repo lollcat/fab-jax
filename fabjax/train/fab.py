@@ -18,8 +18,8 @@ def fab_loss_ais_samples(params, x: chex.Array, log_w: chex.Array, log_q_fn_appl
     """Estimate FAB loss with a batch of samples from AIS."""
     chex.assert_rank(log_w, 1)
     log_q = log_q_fn_apply(params, x)
-    chex.assert_equal_shape(log_q, log_w)
-    return jnp.softmax(log_w) * log_q
+    chex.assert_equal_shape((log_q, log_w))
+    return - jnp.mean(jax.nn.softmax(log_w) * log_q)
 
 
 class TrainStateNoBuffer(NamedTuple):
@@ -42,6 +42,8 @@ def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
         ais_state = ais.init(key2)
         return TrainStateNoBuffer(flow_params=flow_params, key=key3, opt_state=opt_state, ais_state=ais_state)
 
+    @jax.jit
+    @chex.assert_max_traces(4)
     def step(state: TrainStateNoBuffer) -> Tuple[TrainStateNoBuffer, Info]:
         key, subkey = jax.random.split(state.key)
         info = {}
