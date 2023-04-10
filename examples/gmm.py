@@ -1,4 +1,4 @@
-from typing import NamedTuple
+from typing import NamedTuple, Callable
 
 import chex
 import optax
@@ -10,7 +10,8 @@ from molboil.train.train import train
 
 from fabjax.train.fab import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
-from fabjax.sampling import build_ais, build_blackjax_hmc, AnnealedImportanceSampler, simple_resampling, build_metropolis
+from fabjax.sampling import build_ais, build_blackjax_hmc, AnnealedImportanceSampler, simple_resampling, \
+    build_metropolis
 from fabjax.targets.gmm import GMM
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
@@ -22,6 +23,7 @@ class FABTrainConfig(NamedTuple):
     n_eval: int
     flow: Flow
     ais: AnnealedImportanceSampler
+    plotter: Callable
     log_p_fn: LogProbFn
     optimizer: optax.GradientTransformation
     n_checkpoints: int = 0
@@ -31,18 +33,17 @@ class FABTrainConfig(NamedTuple):
 
 
 
-
-def setup_plotter(flow_config: FABTrainConfig, plot_bound=30):
+def setup_plotter(flow, ais, log_p_fn, plot_batch_size, plot_bound: float):
 
     @jax.jit
     @chex.assert_max_traces(3)
     def get_data_for_plotting(state: TrainStateNoBuffer, key: chex.PRNGKey):
-        x0 = flow_config.flow.sample_apply(state.flow_params, key, (flow_config.plot_batch_size,))
+        x0 = flow.sample_apply(state.flow_params, key, (plot_batch_size,))
 
         def log_q_fn(x: chex.Array) -> chex.Array:
-            return flow_config.flow.log_prob_apply(state.flow_params, x)
+            return flow.log_prob_apply(state.flow_params, x)
 
-        point, log_w, ais_state, ais_info = flow_config.ais.step(x0, state.ais_state, log_q_fn, flow_config.log_p_fn)
+        point, log_w, ais_state, ais_info = ais.step(x0, state.ais_state, log_q_fn, log_p_fn)
         x_ais = point.x
         _, x_ais_resampled = simple_resampling(key, log_w, x_ais)
 
@@ -55,9 +56,9 @@ def setup_plotter(flow_config: FABTrainConfig, plot_bound=30):
         plot_marginal_pair(x0, axs[0], bounds=(-plot_bound, plot_bound))
         plot_marginal_pair(x_ais, axs[1], bounds=(-plot_bound, plot_bound))
         plot_marginal_pair(x_ais_resampled, axs[2], bounds=(-plot_bound, plot_bound))
-        plot_contours_2D(flow_config.log_p_fn, axs[0], bound=plot_bound, levels=50)
-        plot_contours_2D(flow_config.log_p_fn, axs[1], bound=plot_bound, levels=50)
-        plot_contours_2D(flow_config.log_p_fn, axs[2], bound=plot_bound, levels=50)
+        plot_contours_2D(log_p_fn, axs[0], bound=plot_bound, levels=50)
+        plot_contours_2D(log_p_fn, axs[1], bound=plot_bound, levels=50)
+        plot_contours_2D(log_p_fn, axs[2], bound=plot_bound, levels=50)
         axs[0].set_title("flow samples")
         axs[1].set_title("ais samples")
         axs[2].set_title("resampled ais samples")
@@ -68,7 +69,9 @@ def setup_plotter(flow_config: FABTrainConfig, plot_bound=30):
 
 def setup_fab_config():
     # Setup params
+
     # Train
+    easy_mode = True
     alpha = 2.  # alpha-divergence param
     dim = 2
     n_iterations = int(2e4)
@@ -76,7 +79,7 @@ def setup_fab_config():
     batch_size = 128
     plot_batch_size = 1000
     lr = 1e-4
-    max_global_norm = 0.1
+    max_global_norm = 1.
 
     # Flow
     n_layers = 8
@@ -98,7 +101,14 @@ def setup_fab_config():
     # Setup flow and target.
     flow_config = FlowDistConfig(dim=dim, n_layers=n_layers, conditioner_mlp_units=conditioner_mlp_units)
     flow = build_flow(flow_config)
-    gmm = GMM(dim, n_mixes=4, loc_scaling=20)
+
+    if easy_mode:
+        target_loc_scaling = 10
+        n_mixes = 4
+    else:
+        target_loc_scaling = 30
+        n_mixes = 40
+    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling)
 
     # Setup AIS.
     if use_hmc:
@@ -114,10 +124,14 @@ def setup_fab_config():
     # Optimizer
     optimizer = optax.chain(optax.zero_nans(), optax.clip_by_global_norm(max_global_norm), optax.adam(lr))
 
+    # Plotter
+    plotter = setup_plotter(flow=flow, ais=ais, log_p_fn=gmm.log_prob, plot_batch_size=plot_batch_size,
+                            plot_bound=target_loc_scaling * 1.5)
 
     config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
                             log_p_fn=gmm.log_prob, ais=ais, optimizer=optimizer, plot_batch_size=plot_batch_size,
-                            n_eval=n_eval)
+                            n_eval=n_eval, plotter=plotter)
+
     return config
 
 
@@ -129,10 +143,8 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
         ais = fab_config.ais, optimizer = fab_config.optimizer,
         batch_size = fab_config.batch_size)
 
-    plotter = setup_plotter(fab_config)
-
     def eval_and_plot_fn(state, subkey, iteration, save, plots_dir) -> dict:
-        plotter(state, subkey)
+        fab_config.plotter(state, subkey)
         return {}
 
     train_config = TrainConfig(n_iteration=fab_config.n_iteration,
