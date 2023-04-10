@@ -17,6 +17,8 @@ Info = dict
 def fab_loss_ais_samples(params, x: chex.Array, log_w: chex.Array, log_q_fn_apply: ParameterizedLogProbFn):
     """Estimate FAB loss with a batch of samples from AIS."""
     chex.assert_rank(log_w, 1)
+    chex.assert_rank(x, 2)
+
     log_q = log_q_fn_apply(params, x)
     chex.assert_equal_shape((log_q, log_w))
     return - jnp.mean(jax.nn.softmax(log_w) * log_q)

@@ -1,18 +1,25 @@
 from typing import NamedTuple
+from functools import partial
 
+import chex
 import optax
+import jax
+import matplotlib.pyplot as plt
 from molboil.train.train import TrainConfig, Logger, ListLogger
 from molboil.train.train import train
 
 from fabjax.train.fab import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
-from fabjax.sampling import build_ais, build_blackjax_hmc, AnnealedImportanceSampler
+from fabjax.sampling import build_ais, build_blackjax_hmc, AnnealedImportanceSampler, simple_resampling
 from fabjax.targets.gmm import GMM
+from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
 class FABTrainConfig(NamedTuple):
     dim: int
     n_iteration: int
     batch_size: int
+    plot_batch_size: int
+    n_eval: int
     flow: Flow
     ais: AnnealedImportanceSampler
     log_p_fn: LogProbFn
@@ -20,11 +27,43 @@ class FABTrainConfig(NamedTuple):
     n_checkpoints: int = 0
     logger: Logger = ListLogger()
     seed: int = 0
-    n_eval: int = 0
     save: bool = False
 
 
-def plot(state: TrainStateNoBuffer, flow: Flow, ais: AnnealedImportanceSampler)
+
+
+def setup_plotter(flow_config: FABTrainConfig, plot_bound=30):
+
+    @jax.jit
+    @chex.assert_max_traces(3)
+    def get_data_for_plotting(state: TrainStateNoBuffer, key: chex.PRNGKey):
+        x0 = flow_config.flow.sample_apply(state.flow_params, key, (flow_config.plot_batch_size,))
+
+        def log_q_fn(x: chex.Array) -> chex.Array:
+            return flow_config.flow.log_prob_apply(state.flow_params, x)
+
+        point, log_w, ais_state, ais_info = flow_config.ais.step(x0, state.ais_state, log_q_fn, flow_config.log_p_fn)
+        x_ais = point.x
+        _, x_ais_resampled = simple_resampling(key, log_w, x_ais)
+
+        return x0, x_ais, x_ais_resampled
+
+    def plot(state: TrainStateNoBuffer, key: chex.PRNGKey):
+        x0, x_ais, x_ais_resampled = get_data_for_plotting(state, key)
+
+        fig, axs = plt.subplots(3, figsize=(5, 15))
+        plot_marginal_pair(x0, axs[0], bounds=(-plot_bound, plot_bound))
+        plot_marginal_pair(x_ais, axs[1], bounds=(-plot_bound, plot_bound))
+        plot_marginal_pair(x_ais_resampled, axs[2], bounds=(-plot_bound, plot_bound))
+        plot_contours_2D(flow_config.log_p_fn, axs[0], bound=plot_bound, levels=50)
+        plot_contours_2D(flow_config.log_p_fn, axs[1], bound=plot_bound, levels=50)
+        plot_contours_2D(flow_config.log_p_fn, axs[2], bound=plot_bound, levels=50)
+        axs[0].set_title("flow samples")
+        axs[1].set_title("ais samples")
+        axs[2].set_title("resampled ais samples")
+        plt.tight_layout()
+        plt.show()
+    return plot
 
 
 def setup_fab_config():
@@ -32,8 +71,10 @@ def setup_fab_config():
     # Train
     alpha = 2.  # alpha-divergence param
     dim = 2
-    n_iterations = 1000
+    n_iterations = 10000
+    n_eval = 10
     batch_size = 64
+    plot_batch_size = 64
     lr = 3e-4
 
     # Flow
@@ -63,11 +104,12 @@ def setup_fab_config():
                     alpha=alpha)
 
     # Optimizer
-    optimizer = optax.adam(lr)
+    optimizer = optax.chain(optax.zero_nans(), optax.adam(lr))
 
 
     config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
-                            log_p_fn=gmm.log_prob, ais=ais, optimizer=optimizer)
+                            log_p_fn=gmm.log_prob, ais=ais, optimizer=optimizer, plot_batch_size=plot_batch_size,
+                            n_eval=n_eval)
     return config
 
 
@@ -79,8 +121,11 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
         ais = fab_config.ais, optimizer = fab_config.optimizer,
         batch_size = fab_config.batch_size)
 
-    def eval_and_plot_fn(state, subkey, iteration, save, plots_dir) -> None:
-        pass  # dummy for now
+    plotter = setup_plotter(fab_config)
+
+    def eval_and_plot_fn(state, subkey, iteration, save, plots_dir) -> dict:
+        plotter(state, subkey)
+        return {}
 
     train_config = TrainConfig(n_iteration=fab_config.n_iteration,
                 n_checkpoints=fab_config.n_checkpoints,

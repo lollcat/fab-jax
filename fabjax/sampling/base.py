@@ -16,23 +16,6 @@ class Point(NamedTuple):
     grad_log_q: Optional[chex.Array] = None
     grad_log_p: Optional[chex.Array] = None
 
-    def __getitem__(self, indices):
-        log_p = self.log_p[indices]
-        grad_log_q = self.grad_log_q[indices] if self.grad_log_q is not None else None
-        grad_log_p = self.grad_log_p[indices] if self.grad_log_p is not None else None
-        return Point(self.x[indices],
-                     self.log_q[indices],
-                     log_p, grad_log_q, grad_log_p)
-
-    def __setitem__(self, indices, values):
-        self.x[indices] = values.x
-        self.log_q[indices] = values.log_q
-        self.log_p[indices] = values.log_p
-        if self.grad_log_q is not None:
-            self.grad_log_q[indices] = values.grad_log_q
-            self.grad_log_p[indices] = values.grad_log_p
-
-
 
 TransitionOperatorState = chex.ArrayTree
 Beta = chex.Array

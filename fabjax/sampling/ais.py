@@ -8,6 +8,7 @@ from typing import Callable
 
 from fabjax.sampling.base import TransitionOperator, LogProbFn, create_point, Point, get_intermediate_log_prob
 from fabjax.sampling.resampling import log_effective_sample_size
+from fabjax.utils.jax_util import broadcasted_where
 
 
 IntermediateLogProb = Callable[[chex.Array, int], chex.Array]
@@ -34,14 +35,20 @@ def log_weight_contribution_point(point: Point, ais_step_index: int, betas: chex
     return log_numerator - log_denominator
 
 
-def ais_inner_transition(point: chex.Array, log_w: chex.Array, trans_op_state: chex.Array, betas: chex.Array,
+def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.Array, betas: chex.Array,
                         ais_step_index: int, transition_operator: TransitionOperator,
                         log_q_fn: LogProbFn, log_p_fn: LogProbFn, alpha: float) -> \
         Tuple[Tuple[Point, chex.Array], Tuple[chex.ArrayTree, dict]]:
     """Perform inner iteration of AIS, incrementing the log_w appropriately."""
     beta = betas[ais_step_index]
 
-    point, trans_op_state, info = transition_operator.step(point, trans_op_state, beta, alpha, log_q_fn, log_p_fn)
+    new_point, trans_op_state, info = transition_operator.step(point, trans_op_state, beta, alpha, log_q_fn, log_p_fn)
+
+    # Remove invalid samples.
+    valid_samples = jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p) & \
+                    jnp.alltrue(jnp.isfinite(new_point.x), axis=-1)
+    point = jax.tree_map(lambda a, b: broadcasted_where(valid_samples, a, b), new_point, point)
+
     log_w = log_w + log_weight_contribution_point(point, ais_step_index, betas, alpha)
 
     return (point, log_w), (trans_op_state, info)
