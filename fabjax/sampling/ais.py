@@ -163,6 +163,10 @@ def build_ais(
         for i in range(n_intermediate_distributions):
             info.update({f"dist{i+1}_" + key: value for key, value in jax.tree_map(lambda x: x[i], infos).items()})
 
+
+        is_finite = jnp.all(jnp.isfinite(point.x), axis=-1) & jnp.isfinite(log_w)
+        info.update(n_finite_ais_samples=jnp.sum(is_finite))
+        info.update(ais_max_abs_x=jnp.max(jnp.abs(point.x)))
         return point, log_w, ais_state, info
 
 

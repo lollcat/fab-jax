@@ -2,7 +2,6 @@ from typing import NamedTuple, Sequence, Union
 
 import chex
 import distrax
-import tensorflow_probability.substrates.jax as tfp
 import jax.numpy as jnp
 
 from fabjax.flow.flow import FlowRecipe, Flow, create_flow
@@ -45,10 +44,6 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
                 mlp_units=config.conditioner_mlp_units
             )
             bijectors.append(bijector)
-
-        if config.permute:
-            permutation = jnp.roll(jnp.arange(config.dim), 1)
-            bijectors.append(tfp.bijectors.Permute(permutation, axis=-1))
 
         return ChainWithExtra(bijectors)
 

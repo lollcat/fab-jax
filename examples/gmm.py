@@ -3,13 +3,14 @@ from typing import NamedTuple
 import chex
 import optax
 import jax
+import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from molboil.train.train import TrainConfig, Logger, ListLogger
 from molboil.train.train import train
 
 from fabjax.train.fab import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
-from fabjax.sampling import build_ais, build_blackjax_hmc, AnnealedImportanceSampler, simple_resampling
+from fabjax.sampling import build_ais, build_blackjax_hmc, AnnealedImportanceSampler, simple_resampling, build_metropolis
 from fabjax.targets.gmm import GMM
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
@@ -70,35 +71,42 @@ def setup_fab_config():
     # Train
     alpha = 2.  # alpha-divergence param
     dim = 2
-    n_iterations = int(5e4)
+    n_iterations = int(2e4)
     n_eval = 10
     batch_size = 128
-    plot_batch_size = batch_size
+    plot_batch_size = 1000
     lr = 1e-4
-    max_global_norm = 100.
+    max_global_norm = 0.1
 
     # Flow
-    n_layers = 4
-    conditioner_mlp_units = (32, 32)
+    n_layers = 8
+    conditioner_mlp_units = (64, 64)
 
     # AIS.
+    use_hmc = False
     hmc_n_outer_steps = 1
-    init_step_size = 1e-3
+    hmc_init_step_size = 1e-3
+    metro_n_outer_steps = 1
+    metro_init_step_size = 5.
+
     target_p_accept = 0.65
     tune_step_size = False
-    n_intermediate_distributions = 2
+    n_intermediate_distributions = 4
     spacing_type = 'linear'
 
 
     # Setup flow and target.
     flow_config = FlowDistConfig(dim=dim, n_layers=n_layers, conditioner_mlp_units=conditioner_mlp_units)
     flow = build_flow(flow_config)
-    gmm = GMM(dim, n_mixes=20, loc_scaling=20)
+    gmm = GMM(dim, n_mixes=4, loc_scaling=20)
 
     # Setup AIS.
-    transition_operator = build_blackjax_hmc(dim=2, n_outer_steps=hmc_n_outer_steps,
-                                                 init_step_size=init_step_size, target_p_accept=target_p_accept,
-                                                 adapt_step_size=tune_step_size)
+    if use_hmc:
+        transition_operator = build_blackjax_hmc(dim=2, n_outer_steps=hmc_n_outer_steps,
+                                                     init_step_size=hmc_init_step_size, target_p_accept=target_p_accept,
+                                                     adapt_step_size=tune_step_size)
+    else:
+        transition_operator = build_metropolis(dim, metro_n_outer_steps, metro_init_step_size)
     ais = build_ais(transition_operator=transition_operator,
                     n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
                     alpha=alpha)

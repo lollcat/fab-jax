@@ -49,7 +49,7 @@ def build_metropolis(
 
             accept = (log_p_accept > log_threshold) & jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p)
             point = jax.lax.cond(accept, lambda p_new, p: p_new, lambda p_new, p: p, new_point, point)
-            info = {"p_accept": jnp.exp(log_p_accept)}
+            info = {"p_accept": jnp.clip(jnp.exp(log_p_accept), a_max=1)}
             return point, info
 
 
