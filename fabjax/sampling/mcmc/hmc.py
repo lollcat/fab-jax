@@ -25,7 +25,6 @@ def build_blackjax_hmc(
                  adapt_step_size: bool = True,
                  target_p_accept: float = 0.65
 ) -> TransitionOperator:
-    # TODO: Use alpha as an argument.
 
     one_step = hmc_kernel(divergence_threshold=1000)
 

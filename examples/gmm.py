@@ -1,5 +1,4 @@
 from typing import NamedTuple
-from functools import partial
 
 import chex
 import optax
