@@ -29,8 +29,8 @@ class FlowParams(NamedTuple):
     bijector: Params
 
 
-class AugmentedFlow(NamedTuple):
-    init: Callable[[chex.PRNGKey], FlowParams]
+class Flow(NamedTuple):
+    init: Callable[[chex.PRNGKey, Sample], FlowParams]
     log_prob_apply: Callable[[FlowParams, Sample], LogProb]
     sample_and_log_prob_apply: Callable[[FlowParams, chex.PRNGKey, chex.Shape], Tuple[Sample, LogProb]]
     sample_apply: Callable[[FlowParams, chex.PRNGKey, chex.Shape], Sample]
@@ -41,7 +41,7 @@ class AugmentedFlow(NamedTuple):
 
 
 
-def create_flow(recipe: FlowRecipe) -> AugmentedFlow:
+def create_flow(recipe: FlowRecipe) -> Flow:
     """Create a `Flow` given the provided definition. Allows for extra info to be passed forward in the flow, and
     is faster to compile than the distrax chain."""
 
@@ -105,7 +105,7 @@ def create_flow(recipe: FlowRecipe) -> AugmentedFlow:
             chex.assert_equal_shape((log_det_prev, log_det))
             return (x, log_det_prev + log_det), None
 
-        log_prob_shape = sample.positions.shape[:-3]
+        log_prob_shape = sample.shape[:-1]
         (x, log_det), _ = jax.lax.scan(scan_fn, init=(sample, jnp.zeros(log_prob_shape)),
                                        xs=params.bijector, reverse=True,
                                        unroll=recipe.compile_n_unroll)
@@ -120,7 +120,7 @@ def create_flow(recipe: FlowRecipe) -> AugmentedFlow:
             chex.assert_equal_shape((log_det_prev, log_det))
             return (x, log_det_prev + log_det), extra
 
-        log_prob_shape = sample.positions.shape[:-3]
+        log_prob_shape = sample.shape[:-1]
         (x, log_det), extra = jax.lax.scan(scan_fn, init=(sample, jnp.zeros(log_prob_shape)),
                                            xs=params.bijector,
                                            reverse=True, unroll=recipe.compile_n_unroll)
@@ -148,7 +148,7 @@ def create_flow(recipe: FlowRecipe) -> AugmentedFlow:
 
         x = base_sample_fn.apply(params.base, key, shape)
         base_log_prob = base_log_prob_fn.apply(params.base, x)
-        (y, log_det), _ = jax.lax.scan(scan_fn, init=(x, jnp.zeros(x.positions.shape[:-3])), xs=params.bijector,
+        (y, log_det), _ = jax.lax.scan(scan_fn, init=(x, jnp.zeros(x.shape[:-1])), xs=params.bijector,
                                        unroll=recipe.compile_n_unroll)
         chex.assert_equal_shape((base_log_prob, log_det))
         log_prob = base_log_prob - log_det
@@ -166,7 +166,7 @@ def create_flow(recipe: FlowRecipe) -> AugmentedFlow:
 
         x = base_sample_fn.apply(params.base, key, shape)
         base_log_prob = base_log_prob_fn.apply(params.base, x)
-        (y, log_det), extra = jax.lax.scan(scan_fn, init=(x, jnp.zeros(x.positions.shape[:-3])), xs=params.bijector,
+        (y, log_det), extra = jax.lax.scan(scan_fn, init=(x, jnp.zeros(x.shape[:-1])), xs=params.bijector,
                                            unroll=recipe.compile_n_unroll)
         chex.assert_equal_shape((base_log_prob, log_det))
         log_prob = base_log_prob - log_det
@@ -197,7 +197,7 @@ def create_flow(recipe: FlowRecipe) -> AugmentedFlow:
         return sample_and_log_prob_apply(*args, **kwargs)[0]
 
 
-    flow = AugmentedFlow(
+    flow = Flow(
         dim=recipe.dim,
         init=init,
         log_prob_apply=log_prob_apply,
