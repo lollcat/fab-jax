@@ -17,9 +17,11 @@ class AISState(NamedTuple):
     transition_operator_state: chex.ArrayTree
 
 
+AisStepFn = Callable[[chex.Array, AISState, LogProbFn, LogProbFn], Tuple[Point, chex.Array, AISState, dict]]
+
 class AnnealedImportanceSampler(NamedTuple):
     init: Callable[[chex.PRNGKey], AISState]
-    step: Callable[[chex.Array, AISState, LogProbFn, LogProbFn], Tuple[Point, chex.Array, AISState, dict]]
+    step: AisStepFn
     transition_operator: TransitionOperator
     betas: chex.Array
     alpha: float

@@ -5,7 +5,6 @@ import jax
 import jax.numpy as jnp
 
 
-
 LogProbFn = Callable[[chex.Array], chex.Array]
 
 
