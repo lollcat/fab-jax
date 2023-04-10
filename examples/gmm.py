@@ -71,11 +71,12 @@ def setup_fab_config():
     # Train
     alpha = 2.  # alpha-divergence param
     dim = 2
-    n_iterations = 10000
+    n_iterations = int(5e4)
     n_eval = 10
-    batch_size = 64
-    plot_batch_size = 64
-    lr = 3e-4
+    batch_size = 128
+    plot_batch_size = batch_size
+    lr = 1e-4
+    max_global_norm = 100.
 
     # Flow
     n_layers = 4
@@ -83,9 +84,9 @@ def setup_fab_config():
 
     # AIS.
     hmc_n_outer_steps = 1
-    init_step_size = 1.
+    init_step_size = 1e-3
     target_p_accept = 0.65
-    tune_step_size = True
+    tune_step_size = False
     n_intermediate_distributions = 2
     spacing_type = 'linear'
 
@@ -104,7 +105,7 @@ def setup_fab_config():
                     alpha=alpha)
 
     # Optimizer
-    optimizer = optax.chain(optax.zero_nans(), optax.adam(lr))
+    optimizer = optax.chain(optax.zero_nans(), optax.clip_by_global_norm(max_global_norm), optax.adam(lr))
 
 
     config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
