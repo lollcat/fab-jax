@@ -3,6 +3,9 @@ import jax
 import distrax
 import matplotlib.pyplot as plt
 
+from molboil.utils.loggers import ListLogger
+from molboil.utils.plotting import plot_history
+
 from fabjax.sampling.mcmc.metropolis import build_metropolis
 from fabjax.sampling.base import create_point
 from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair
@@ -17,7 +20,7 @@ def test_metropolis_produces_good_samples():
     n_outer_steps = 100
     alpha = 2.
 
-    metropolis_trans_op = build_metropolis(dim=2, n_steps=n_outer_steps, init_step_size=1.)
+    metropolis_trans_op = build_metropolis(dim=2, n_steps=n_outer_steps, init_step_size=1., tune_step_size=True)
 
     loc_q = jnp.zeros((dim,))
     dist_q = distrax.MultivariateNormalDiag(loc_q, jnp.ones((dim,)))
@@ -33,9 +36,16 @@ def test_metropolis_produces_good_samples():
 
     trans_op_state = metropolis_trans_op.init(key)
 
+    logger = ListLogger()
+
     # Run MCMC chain.
-    x_new, trans_op_state, info = metropolis_trans_op.step(points, trans_op_state, beta, alpha,
-                                                          dist_q.log_prob, dist_p.log_prob)
+    for i in range(50):
+        x_new, trans_op_state, info = metropolis_trans_op.step(points, trans_op_state, beta, alpha,
+                                                              dist_q.log_prob, dist_p.log_prob)
+        logger.write(info)
+
+    plot_history(logger.history)
+    plt.show()
 
     # Visualise samples.
     bound = 10
