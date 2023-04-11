@@ -13,8 +13,8 @@ class Point(NamedTuple):
     x: chex.Array
     log_q: chex.Array
     log_p: chex.Array
-    grad_log_q: Optional[chex.Array] = None
-    grad_log_p: Optional[chex.Array] = None
+    grad_log_q: Optional[chex.Array] = jnp.array(None)
+    grad_log_p: Optional[chex.Array] = jnp.array(None)
 
 
 TransitionOperatorState = chex.ArrayTree
