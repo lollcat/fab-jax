@@ -4,6 +4,7 @@ import chex
 import jax.numpy as jnp
 import jax.random
 import optax
+from jax.flatten_util import ravel_pytree
 
 from fabjax.sampling.smc import SequentialMonteCarloSampler, SMCState
 from fabjax.flow.flow import Flow, FlowParams
@@ -20,7 +21,9 @@ def fab_loss_buffer_samples(
         x: chex.Array,
         log_q_old: chex.Array,
         alpha: chex.Array,
-        log_q_fn_apply: ParameterizedLogProbFn) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
+        log_q_fn_apply: ParameterizedLogProbFn,
+        w_adjust_clip: float,
+) -> Tuple[chex.Array, Tuple[chex.Array, chex.Array]]:
     """Estimate FAB loss with a batch of samples from the prioritized replay buffer."""
     chex.assert_rank(x, 2)
     chex.assert_rank(log_q_old, 1)
@@ -28,7 +31,8 @@ def fab_loss_buffer_samples(
     log_q = log_q_fn_apply(params, x)
     log_w_adjust = (1 - alpha) * (jax.lax.stop_gradient(log_q) - log_q_old)
     chex.assert_equal_shape((log_q, log_w_adjust))
-    return - jnp.mean(jnp.exp(log_w_adjust)*log_q), (log_w_adjust, log_q)
+    w_adjust = jnp.clip(jnp.exp(log_w_adjust), a_max=w_adjust_clip)
+    return - jnp.mean(w_adjust * log_q), (log_w_adjust, log_q)
 
 
 class TrainStateWithBuffer(NamedTuple):
@@ -47,7 +51,8 @@ def build_fab_with_buffer_init_step_fns(
         optimizer: optax.GradientTransformation,
         batch_size: int,
         n_updates_per_smc_forward_pass: int,
-        alpha: float = 2.
+        alpha: float = 2.,
+        w_adjust_clip: float = 10.,
 ):
     assert smc.alpha == alpha
 
@@ -92,11 +97,12 @@ def build_fab_with_buffer_init_step_fns(
 
         # Estimate loss and update flow params.
         (loss, (log_w_adjust, log_q)), grad = jax.value_and_grad(fab_loss_buffer_samples, has_aux=True)(
-            flow_params, x, log_q_old, alpha, flow.log_prob_apply)
+            flow_params, x, log_q_old, alpha, flow.log_prob_apply, w_adjust_clip)
         updates, new_opt_state = optimizer.update(grad, opt_state, params=flow_params)
         new_params = optax.apply_updates(flow_params, updates)
         info.update(loss=loss)
         info.update(log10_grad_norm=jnp.log10(optax.global_norm(grad)))  # Makes scale nice for plotting
+        info.update(log10_max_param_grad=jnp.log(jnp.max(ravel_pytree(grad)[0])))
         return (new_params, new_opt_state), (info, log_w_adjust, log_q)
 
     @jax.jit

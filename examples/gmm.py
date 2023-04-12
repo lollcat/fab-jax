@@ -32,6 +32,7 @@ class FABTrainConfig(NamedTuple):
     use_buffer: bool
     buffer: Optional[PrioritisedBuffer] = None
     n_updates_per_smc_forward_pass: Optional[int] = None
+    w_adjust_clip: float = 10.
     n_checkpoints: int = 0
     logger: Logger = ListLogger()
     seed: int = 0
@@ -91,8 +92,8 @@ def setup_fab_config():
     # Setup params
 
     # Train
-    easy_mode = True
-    use_64_bit = True
+    easy_mode = False
+    use_64_bit = False
     alpha = 2.  # alpha-divergence param
     dim = 2
     n_iterations = int(1e3)
@@ -100,13 +101,15 @@ def setup_fab_config():
     batch_size = 128
     plot_batch_size = 1000
     lr = 1e-4
-    max_global_norm = jnp.inf
+    max_param_grad = 10000.
+    max_global_grad_norm = jnp.inf
 
     # Setup buffer
     with_buffer = True
     buffer_max_length = batch_size*100
     buffer_min_length = batch_size*10
     n_updates_per_smc_forward_pass = 4
+    w_adjust_clip = 10.
 
     # Flow
     n_layers = 8
@@ -121,7 +124,7 @@ def setup_fab_config():
     metro_init_step_size = 5.
 
     target_p_accept = 0.65
-    tune_step_size = True
+    tune_step_size = False
     n_intermediate_distributions = 4
     spacing_type = 'linear'
 
@@ -153,7 +156,9 @@ def setup_fab_config():
 
     # Optimizer
     optimizer = optax.chain(optax.zero_nans(),
-                            optax.clip_by_global_norm(max_global_norm),
+                            optax.clip(max_param_grad),
+                            optax.clip_by_global_norm(max_global_grad_norm),
+                            optax.zero_nans(),
                             optax.adam(lr))
 
     # Prioritized buffer
@@ -171,7 +176,7 @@ def setup_fab_config():
                             log_p_fn=gmm.log_prob, smc=smc, optimizer=optimizer, plot_batch_size=plot_batch_size,
                             n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
-                            use_64_bit=use_64_bit)
+                            use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip)
 
     return config
 
@@ -185,7 +190,8 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
             flow=fab_config.flow, log_p_fn=fab_config.log_p_fn,
             smc=fab_config.smc, optimizer = fab_config.optimizer,
             batch_size=fab_config.batch_size,
-            buffer=fab_config.buffer, n_updates_per_smc_forward_pass=fab_config.n_updates_per_smc_forward_pass
+            buffer=fab_config.buffer, n_updates_per_smc_forward_pass=fab_config.n_updates_per_smc_forward_pass,
+            w_adjust_clip=fab_config.w_adjust_clip
         )
     else:
         init, step = build_fab_no_buffer_init_step_fns(
