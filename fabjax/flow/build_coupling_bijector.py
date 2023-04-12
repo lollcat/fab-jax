@@ -2,10 +2,14 @@ from typing import Sequence
 
 import chex
 import distrax
+import jax.nn
 import jax.numpy as jnp
 
 from fabjax.flow.distrax_with_extra import SplitCouplingWithExtra, ChainWithExtra, BijectorWithExtra
 from fabjax.utils.nets import ConditionerMLP
+
+
+inverse_softplus = lambda x: jnp.log(jnp.exp(x) - 1.)
 
 
 def make_conditioner(name, n_output_params, mlp_units, identity_init):
@@ -45,8 +49,9 @@ def build_split_coupling_bijector(
                                        mlp_units, identity_init)
 
         def bijector_fn(params: chex.Array) -> distrax.Bijector:
-            log_scale, shift = jnp.split(params, 2, axis=-1)
-            return distrax.ScalarAffine(shift=shift, log_scale=log_scale)
+            scale_logit, shift = jnp.split(params, 2, axis=-1)
+            scale = jax.nn.softplus(scale_logit + inverse_softplus(1.))
+            return distrax.ScalarAffine(shift=shift, scale=scale)
 
 
         bijector = SplitCouplingWithExtra(

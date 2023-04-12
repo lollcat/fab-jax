@@ -28,7 +28,7 @@ def fab_loss_buffer_samples(
     log_q = log_q_fn_apply(params, x)
     log_w_adjust = (1 - alpha) * (jax.lax.stop_gradient(log_q) - log_q_old)
     chex.assert_equal_shape((log_q, log_w_adjust))
-    return - jnp.mean(jnp.exp(log_w_adjust) * log_q), (log_w_adjust, log_q)
+    return - jnp.mean(jnp.exp(log_w_adjust)*log_q), (log_w_adjust, log_q)
 
 
 class TrainStateWithBuffer(NamedTuple):
@@ -96,6 +96,7 @@ def build_fab_with_buffer_init_step_fns(
         updates, new_opt_state = optimizer.update(grad, opt_state, params=flow_params)
         new_params = optax.apply_updates(flow_params, updates)
         info.update(loss=loss)
+        info.update(log10_grad_norm=jnp.log10(optax.global_norm(grad)))  # Makes scale nice for plotting
         return (new_params, new_opt_state), (info, log_w_adjust, log_q)
 
     @jax.jit
