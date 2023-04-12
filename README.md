@@ -28,3 +28,4 @@ Additionally, we have
 # TODO:
  - Use sum-tree for prioritised buffer implementation. Would be nice to do everything with log probs.
  - make nice target distribution abstractions
+ - Could use exponential moving average for flow params used in SMC (i.e. target network).
