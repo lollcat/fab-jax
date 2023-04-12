@@ -1,4 +1,4 @@
-from typing import NamedTuple, Callable
+from typing import NamedTuple, Callable, Optional, Union
 
 import chex
 import optax
@@ -8,12 +8,16 @@ import matplotlib.pyplot as plt
 from molboil.train.train import TrainConfig, Logger, ListLogger
 from molboil.train.train import train
 
-from fabjax.train.fab import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
+from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
+    TrainStateNoBuffer, build_fab_with_buffer_init_step_fns, TrainStateWithBuffer
+from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, PrioritisedBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
 from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloSampler, simple_resampling, \
     build_metropolis
 from fabjax.targets.gmm import GMM
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
+from fabjax.utils.optimize import get_optimizer, OptimizerConfig
+
 
 class FABTrainConfig(NamedTuple):
     dim: int
@@ -26,19 +30,24 @@ class FABTrainConfig(NamedTuple):
     plotter: Callable
     log_p_fn: LogProbFn
     optimizer: optax.GradientTransformation
+    use_buffer: bool
+    buffer: Optional[PrioritisedBuffer] = None
+    n_updates_per_smc_forward_pass: Optional[int] = None
+    w_adjust_clip: float = 10.
     n_checkpoints: int = 0
     logger: Logger = ListLogger()
     seed: int = 0
     save: bool = False
+    use_64_bit: bool = False
 
 
 
 
-def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float):
-
+def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float,
+                  buffer: Optional[PrioritisedBuffer] = None):
     @jax.jit
     @chex.assert_max_traces(3)
-    def get_data_for_plotting(state: TrainStateNoBuffer, key: chex.PRNGKey):
+    def get_data_for_plotting(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey):
         x0 = flow.sample_apply(state.flow_params, key, (plot_batch_size,))
 
         def log_q_fn(x: chex.Array) -> chex.Array:
@@ -48,12 +57,24 @@ def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float):
         x_smc = point.x
         _, x_smc_resampled = simple_resampling(key, log_w, x_smc)
 
-        return x0, x_smc, x_smc_resampled
+        if buffer is not None:
+            x_buffer = buffer.sample(key, state.buffer_state, plot_batch_size)[0]
+        else:
+            x_buffer = None
 
-    def plot(state: TrainStateNoBuffer, key: chex.PRNGKey):
-        x0, x_smc, x_smc_resampled = get_data_for_plotting(state, key)
+        return x0, x_smc, x_smc_resampled, x_buffer
 
-        fig, axs = plt.subplots(3, figsize=(5, 15))
+    def plot(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey):
+        x0, x_smc, x_smc_resampled, x_buffer = get_data_for_plotting(state, key)
+
+        if buffer:
+            fig, axs = plt.subplots(2, 2, figsize=(10, 10))
+            axs = axs.flatten()
+            plot_marginal_pair(x_buffer, axs[3], bounds=(-plot_bound, plot_bound))
+            plot_contours_2D(log_p_fn, axs[3], bound=plot_bound, levels=50)
+            axs[3].set_title("buffer samples")
+        else:
+            fig, axs = plt.subplots(3, figsize=(5, 15))
         plot_marginal_pair(x0, axs[0], bounds=(-plot_bound, plot_bound))
         plot_marginal_pair(x_smc, axs[1], bounds=(-plot_bound, plot_bound))
         plot_marginal_pair(x_smc_resampled, axs[2], bounds=(-plot_bound, plot_bound))
@@ -72,19 +93,25 @@ def setup_fab_config():
     # Setup params
 
     # Train
-    easy_mode = True
+    easy_mode = False
+    use_64_bit = False
     alpha = 2.  # alpha-divergence param
     dim = 2
-    n_iterations = int(2e4)
+    n_iterations = int(3e3)
     n_eval = 10
     batch_size = 128
     plot_batch_size = 1000
-    lr = 1e-4
-    max_global_norm = 1.
+
+    # Setup buffer
+    with_buffer = True
+    buffer_max_length = batch_size*100
+    buffer_min_length = batch_size*10
+    n_updates_per_smc_forward_pass = 4
+    w_adjust_clip = 10.
 
     # Flow
     n_layers = 8
-    conditioner_mlp_units = (64, 64)
+    conditioner_mlp_units = (64, 64, 64)
 
     # smc.
     use_resampling = True
@@ -95,9 +122,19 @@ def setup_fab_config():
     metro_init_step_size = 5.
 
     target_p_accept = 0.65
-    tune_step_size = True
+    tune_step_size = False
     n_intermediate_distributions = 4
     spacing_type = 'linear'
+
+    optimizer_config = OptimizerConfig(
+        init_lr=3e-4,
+        dynamic_grad_ignore_and_clip=True,
+        use_schedule=True,
+        peak_lr=3e-4,
+        end_lr=6e-5,
+        n_iter_total=n_iterations * n_updates_per_smc_forward_pass if with_buffer else n_iterations,
+        n_iter_warmup=10,
+    )
 
 
     # Setup flow and target.
@@ -126,15 +163,24 @@ def setup_fab_config():
                     alpha=alpha, use_resampling=use_resampling)
 
     # Optimizer
-    optimizer = optax.chain(optax.zero_nans(), optax.clip_by_global_norm(max_global_norm), optax.adam(lr))
+    optimizer, lr = get_optimizer(optimizer_config)
+
+    # Prioritized buffer
+    if with_buffer:
+        buffer = build_prioritised_buffer(dim=dim, max_length=buffer_max_length, min_length_to_sample=buffer_min_length)
+    else:
+        buffer = None
+        n_updates_per_smc_forward_pass = None
 
     # Plotter
     plotter = setup_plotter(flow=flow, smc=smc, log_p_fn=gmm.log_prob, plot_batch_size=plot_batch_size,
-                            plot_bound=target_loc_scaling * 1.5)
+                            plot_bound=target_loc_scaling * 1.5, buffer=buffer)
 
     config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
                             log_p_fn=gmm.log_prob, smc=smc, optimizer=optimizer, plot_batch_size=plot_batch_size,
-                            n_eval=n_eval, plotter=plotter)
+                            n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
+                            n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
+                            use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip)
 
     return config
 
@@ -142,12 +188,24 @@ def setup_fab_config():
 def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
     """Convert fab_config into what we need for running the molboil training loop."""
 
-    init, step = build_fab_no_buffer_init_step_fns(
-        fab_config.flow, log_p_fn=fab_config.log_p_fn,
-        smc = fab_config.smc, optimizer = fab_config.optimizer,
-        batch_size = fab_config.batch_size)
+    if fab_config.use_buffer:
+        assert fab_config.buffer is not None and fab_config.n_updates_per_smc_forward_pass is not None
+        init, step = build_fab_with_buffer_init_step_fns(
+            flow=fab_config.flow, log_p_fn=fab_config.log_p_fn,
+            smc=fab_config.smc, optimizer = fab_config.optimizer,
+            batch_size=fab_config.batch_size,
+            buffer=fab_config.buffer, n_updates_per_smc_forward_pass=fab_config.n_updates_per_smc_forward_pass,
+            w_adjust_clip=fab_config.w_adjust_clip
+        )
+    else:
+        init, step = build_fab_no_buffer_init_step_fns(
+            fab_config.flow, log_p_fn=fab_config.log_p_fn,
+            smc=fab_config.smc, optimizer=fab_config.optimizer,
+            batch_size=fab_config.batch_size)
 
     def eval_and_plot_fn(state, subkey, iteration, save, plots_dir) -> dict:
+        # chex.assert_tree_all_finite(state.flow_params)
+        # chex.assert_tree_all_finite(state.opt_state)
         fab_config.plotter(state, subkey)
         return {}
 
@@ -159,7 +217,8 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
                 init_state = init,
                 update_state = step,
                 eval_and_plot_fn = eval_and_plot_fn,
-                save = fab_config.save
+                save = fab_config.save,
+                use_64_bit=fab_config.use_64_bit
                 )
     return train_config
 

@@ -42,6 +42,7 @@ def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
         flow_params = flow.init(key1, dummy_sample)
         opt_state = optimizer.init(flow_params)
         smc_state = smc.init(key2)
+
         return TrainStateNoBuffer(flow_params=flow_params, key=key3, opt_state=opt_state, smc_state=smc_state)
 
     @jax.jit
@@ -55,6 +56,7 @@ def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
             return flow.log_prob_apply(state.flow_params, x)
 
         x0 = flow.sample_apply(state.flow_params, subkey, (batch_size,))
+        chex.assert_rank(x0, 2)  # Currently written assuming x only has 1 event dimension.
         point, log_w, smc_state, smc_info = smc.step(x0, state.smc_state, log_q_fn, log_p_fn)
         info.update(smc_info)
 
