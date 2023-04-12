@@ -69,7 +69,8 @@ def get_intermediate_log_prob(
         alpha: Union[chex.Array, float],
         ) -> chex.Array:
     """Get log prob of point according to intermediate AIS distribution.
-    Set AIS final target g=p^\alpha q^(1-\alpha). log_prob = (1 - beta) log_q + beta log_g.
+    Set AIS final target g=p^\alpha q^(1-\alpha).
+    log_prob = (1 - beta) log_q + beta log_g.
     """
     return ((1-beta) + beta*(1-alpha)) * log_q + beta*alpha*log_p
 
