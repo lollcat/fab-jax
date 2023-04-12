@@ -72,7 +72,7 @@ def setup_fab_config():
     # Setup params
 
     # Train
-    easy_mode = False
+    easy_mode = True
     alpha = 2.  # alpha-divergence param
     dim = 2
     n_iterations = int(2e4)
