@@ -1,4 +1,4 @@
-from typing import NamedTuple, Callable
+from typing import NamedTuple, Callable, Optional
 
 import chex
 import optax
@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 from molboil.train.train import TrainConfig, Logger, ListLogger
 from molboil.train.train import train
 
-from fabjax.train.fab_without_buffer import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
+from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
+    TrainStateNoBuffer, build_fab_with_buffer_init_step_fns, TrainStateWithBuffer
+from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, PrioritisedBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
 from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloSampler, simple_resampling, \
     build_metropolis
@@ -27,6 +29,9 @@ class FABTrainConfig(NamedTuple):
     plotter: Callable
     log_p_fn: LogProbFn
     optimizer: optax.GradientTransformation
+    use_buffer: bool
+    buffer: Optional[PrioritisedBuffer] = None
+    n_updates_per_smc_forward_pass: Optional[int] = None
     n_checkpoints: int = 0
     logger: Logger = ListLogger()
     seed: int = 0
@@ -35,8 +40,8 @@ class FABTrainConfig(NamedTuple):
 
 
 
-def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float):
-
+def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float,
+                  buffer: Optional[PrioritisedBuffer] = None):
     @jax.jit
     @chex.assert_max_traces(3)
     def get_data_for_plotting(state: TrainStateNoBuffer, key: chex.PRNGKey):
@@ -82,6 +87,12 @@ def setup_fab_config():
     plot_batch_size = 1000
     lr = 1e-4
     max_global_norm = 1.
+
+    # Setup buffer
+    with_buffer = True
+    buffer_max_length = batch_size*100
+    buffer_min_length = batch_size*10
+    n_updates_per_smc_forward_pass = 4
 
     # Flow
     n_layers = 8
@@ -129,13 +140,21 @@ def setup_fab_config():
     # Optimizer
     optimizer = optax.chain(optax.zero_nans(), optax.clip_by_global_norm(max_global_norm), optax.adam(lr))
 
+    # Prioritized buffer
+    if with_buffer:
+        buffer = build_prioritised_buffer(dim=dim, max_length=buffer_max_length, min_length_to_sample=buffer_min_length)
+    else:
+        buffer = None
+        n_updates_per_smc_forward_pass = None
+
     # Plotter
     plotter = setup_plotter(flow=flow, smc=smc, log_p_fn=gmm.log_prob, plot_batch_size=plot_batch_size,
                             plot_bound=target_loc_scaling * 1.5)
 
     config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
                             log_p_fn=gmm.log_prob, smc=smc, optimizer=optimizer, plot_batch_size=plot_batch_size,
-                            n_eval=n_eval, plotter=plotter)
+                            n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
+                            n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass)
 
     return config
 
@@ -143,10 +162,19 @@ def setup_fab_config():
 def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
     """Convert fab_config into what we need for running the molboil training loop."""
 
-    init, step = build_fab_no_buffer_init_step_fns(
-        fab_config.flow, log_p_fn=fab_config.log_p_fn,
-        smc = fab_config.smc, optimizer = fab_config.optimizer,
-        batch_size = fab_config.batch_size)
+    if fab_config.use_buffer:
+        assert fab_config.buffer is not None and fab_config.n_updates_per_smc_forward_pass is not None
+        init, step = build_fab_with_buffer_init_step_fns(
+            flow=fab_config.flow, log_p_fn=fab_config.log_p_fn,
+            smc=fab_config.smc, optimizer = fab_config.optimizer,
+            batch_size=fab_config.batch_size,
+            buffer=fab_config.buffer, n_updates_per_smc_forward_pass=fab_config.n_updates_per_smc_forward_pass
+        )
+    else:
+        init, step = build_fab_no_buffer_init_step_fns(
+            fab_config.flow, log_p_fn=fab_config.log_p_fn,
+            smc=fab_config.smc, optimizer=fab_config.optimizer,
+            batch_size=fab_config.batch_size)
 
     def eval_and_plot_fn(state, subkey, iteration, save, plots_dir) -> dict:
         fab_config.plotter(state, subkey)

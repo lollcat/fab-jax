@@ -73,12 +73,14 @@ class PrioritisedBuffer(NamedTuple):
     sample: SampleFn
     sample_n_batches: SampleNBatchesFn
     adjust: AdjustFn
+    min_lengtht_to_sample: int
+    max_length: int
 
 
 def build_prioritised_buffer(
         dim: int,
         max_length: int,
-        min_sample_length: int,
+        min_length_to_sample: int,
         sample_with_replacement: bool = False
 ) -> PrioritisedBuffer:
     """
@@ -87,7 +89,7 @@ def build_prioritised_buffer(
     Args:
         dim: Dimension of x data.
         max_length: Maximum length of the buffer.
-        min_sample_length: Minimum length of buffer required for sampling.
+        min_length_to_sample: Minimum length of buffer required for sampling.
         sample_with_replacement: Whether to sample with replacement.
 
     The `max_length` and `min_sample_length` should be sufficiently long to prevent overfitting
@@ -95,15 +97,17 @@ def build_prioritised_buffer(
     sampling batch size, then we may overfit to the first batch of data, as we would update
     on it many times during the start of training.
     """
-    assert min_sample_length <= max_length
+    assert min_length_to_sample <= max_length
 
 
     def init(x: chex.Array, log_w: chex.Array, log_q_old: chex.Array) -> PrioritisedBufferState:
         """
         Initialise the buffer state, by filling it above `min_sample_length`.
         """
+        chex.assert_rank(x, 2)
+        chex.assert_equal_shape((x[:, 0], log_w, log_q_old))
         n_samples = x.shape[0]
-        assert n_samples >= min_sample_length, "Buffer requires at least `min_sample_length` samples for init."
+        assert n_samples >= min_length_to_sample, "Buffer requires at least `min_sample_length` samples for init."
 
         current_index = 0
         is_full = False  # whether the buffer is full
@@ -121,6 +125,8 @@ def build_prioritised_buffer(
     def add(x: chex.Array, log_w: chex.Array, log_q: chex.Array,
             buffer_state: PrioritisedBufferState) -> PrioritisedBufferState:
         """Update the buffer's state with a new batch of data."""
+        chex.assert_rank(x, 2)
+        chex.assert_equal_shape((x[:, 0], log_w, log_q))
         batch_size = x.shape[0]
         valid_samples = jnp.isfinite(log_w) & jnp.all(jnp.isfinite(x), axis=-1) \
                         & jnp.isfinite(log_q)
@@ -143,7 +149,7 @@ def build_prioritised_buffer(
         is_full = jax.lax.select(buffer_state.is_full, buffer_state.is_full,
                                  new_index >= max_length)
         can_sample = jax.lax.select(buffer_state.is_full, buffer_state.can_sample,
-                                    new_index >= min_sample_length)
+                                    new_index >= min_length_to_sample)
         current_index = new_index % max_length
 
         data = Data(x=x, log_w=log_w, log_q_old=log_q)
@@ -192,7 +198,8 @@ def build_prioritised_buffer(
             -> PrioritisedBufferState:
         """Adjust log weights and log q to match new value of theta, this is typically performed
         over minibatches, rather than over the whole dataset at once."""
-        chex.assert_equal_shape((log_q, indices))
+        chex.assert_rank(log_q, 1)
+        chex.assert_equal_shape((log_q, log_w_adjustment, indices))
 
         # prevent invalid adjustments
         valid_adjustment = jnp.isfinite(log_w_adjustment) & jnp.isfinite(log_q)
@@ -215,4 +222,6 @@ def build_prioritised_buffer(
                              add=add,
                              adjust=adjust,
                              sample=sample,
-                             sample_n_batches=sample_n_batches)
+                             sample_n_batches=sample_n_batches,
+                             min_lengtht_to_sample=min_length_to_sample,
+                             max_length=max_length)

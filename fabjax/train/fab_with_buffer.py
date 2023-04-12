@@ -73,11 +73,13 @@ def build_fab_with_buffer_init_step_fns(
             point, log_w, smc_state, smc_info = smc.step(x0, smc_state, log_q_fn, log_p_fn)
             return smc_state, (point.x, log_w, point.log_q)
 
-        n_forward_pass = batch_size
+        n_forward_pass = (buffer.min_lengtht_to_sample // batch_size) + 1
         smc_state, (x, log_w, log_q) = jax.lax.scan(body_fn, init=smc_state,
                                                     xs=jax.random.split(key4, n_forward_pass))
 
-        buffer_state = buffer.init(x, log_w, log_q)
+        buffer_state = buffer.init(jnp.reshape(x, (n_forward_pass*batch_size, flow.dim)),
+                                               log_w.flatten(),
+                                               log_q.flatten())
 
         return TrainStateWithBuffer(flow_params=flow_params, key=key3, opt_state=opt_state,
                                     smc_state=smc_state, buffer_state=buffer_state)
@@ -89,7 +91,7 @@ def build_fab_with_buffer_init_step_fns(
         info = {}
 
         # Estimate loss and update flow params.
-        (loss, log_w_adjust, log_q), grad = jax.value_and_grad(fab_loss_buffer_samples, has_aux=True)(
+        (loss, (log_w_adjust, log_q)), grad = jax.value_and_grad(fab_loss_buffer_samples, has_aux=True)(
             flow_params, x, log_q_old, alpha, flow.log_prob_apply)
         updates, new_opt_state = optimizer.update(grad, opt_state, params=flow_params)
         new_params = optax.apply_updates(flow_params, updates)
