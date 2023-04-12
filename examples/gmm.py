@@ -8,12 +8,13 @@ import matplotlib.pyplot as plt
 from molboil.train.train import TrainConfig, Logger, ListLogger
 from molboil.train.train import train
 
-from fabjax.train.fab import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
+from fabjax.train.fab_without_buffer import build_fab_no_buffer_init_step_fns, LogProbFn, TrainStateNoBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
 from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloSampler, simple_resampling, \
     build_metropolis
 from fabjax.targets.gmm import GMM
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
+
 
 class FABTrainConfig(NamedTuple):
     dim: int
