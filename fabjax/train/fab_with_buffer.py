@@ -7,6 +7,7 @@ import optax
 
 from fabjax.sampling.smc import SequentialMonteCarloSampler, SMCState
 from fabjax.flow.flow import Flow, FlowParams
+from fabjax.buffer import PrioritisedBuffer, PrioritisedBufferState
 
 Params = chex.ArrayTree
 LogProbFn = Callable[[chex.Array], chex.Array]
@@ -14,39 +15,74 @@ ParameterizedLogProbFn = Callable[[chex.ArrayTree, chex.Array], chex.Array]
 Info = dict
 
 
-def fab_loss_smc_samples(params, x: chex.Array, log_w: chex.Array, log_q_fn_apply: ParameterizedLogProbFn):
-    """Estimate FAB loss with a batch of samples from smc."""
-    chex.assert_rank(log_w, 1)
+def fab_loss_buffer_samples(
+        params,
+        x: chex.Array,
+        log_q_old: chex.Array,
+        alpha: chex.Array,
+        log_q_fn_apply: ParameterizedLogProbFn) -> Tuple[chex.Array, chex.Array]:
+    """Estimate FAB loss with a batch of samples from the prioritized replay buffer."""
     chex.assert_rank(x, 2)
+    chex.assert_rank(log_q_old, 1)
 
     log_q = log_q_fn_apply(params, x)
-    chex.assert_equal_shape((log_q, log_w))
-    return - jnp.mean(jax.nn.softmax(log_w) * log_q)
+    log_w_adjust = (1 - alpha) * (jax.lax.stop_gradient(log_q) - log_q_old)
+    chex.assert_equal_shape((log_q, log_w_adjust))
+    return - jnp.mean(jnp.exp(log_w_adjust) * log_q), log_w_adjust
 
 
-class TrainStateNoBuffer(NamedTuple):
+class TrainStateWithBuffer(NamedTuple):
     flow_params: FlowParams
     key: chex.PRNGKey
     opt_state: optax.OptState
     smc_state: SMCState
+    buffer_state: PrioritisedBufferState
 
 
-def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
-                                      smc: SequentialMonteCarloSampler, optimizer: optax.GradientTransformation,
-                                      batch_size: int):
+def build_fab_with_buffer_init_step_fns(
+        flow: Flow,
+        log_p_fn: LogProbFn,
+        smc: SequentialMonteCarloSampler,
+        buffer: PrioritisedBuffer,
+        optimizer: optax.GradientTransformation,
+        batch_size: int,
+        n_updates_per_smc_forward_pass: int,
+):
 
-    def init(key: chex.PRNGKey) -> TrainStateNoBuffer:
-        """Initialise the flow, optimizer and smc states."""
-        key1, key2, key3 = jax.random.split(key, 3)
+    def init(key: chex.PRNGKey) -> TrainStateWithBuffer:
+        """Initialise the flow, optimizer, SMC and buffer states."""
+        key1, key2, key3, key4 = jax.random.split(key, 4)
         dummy_sample = jnp.zeros(flow.dim)
         flow_params = flow.init(key1, dummy_sample)
         opt_state = optimizer.init(flow_params)
         smc_state = smc.init(key2)
-        return TrainStateNoBuffer(flow_params=flow_params, key=key3, opt_state=opt_state, smc_state=smc_state)
+
+        # Now run multiple forward passes of SMC to fill the buffer. This also
+        # tunes the SMC state in the process.
+        def log_q_fn(x: chex.Array) -> chex.Array:
+            return flow.log_prob_apply(flow_params, x)
+
+        def body_fn(carry, xs):
+            """fer."""
+            smc_state = carry
+            key = xs
+            x0 = flow.sample_apply(flow_params, key, (batch_size,))
+            chex.assert_rank(x0, 2)  # Currently written assuming x only has 1 event dimension.
+            point, log_w, smc_state, smc_info = smc.step(x0, smc_state, log_q_fn, log_p_fn)
+            return smc_state, (point.x, log_w, point.log_q)
+
+        n_forward_pass = batch_size
+        smc_state, (x, log_w, log_q) = jax.lax.scan(body_fn, init=smc_state,
+                                                    xs=jax.random.split(key4, n_forward_pass))
+
+        buffer_state = buffer.init(x, log_w, log_q)
+
+        return TrainStateWithBuffer(flow_params=flow_params, key=key3, opt_state=opt_state,
+                                    smc_state=smc_state, buffer_state=buffer_state)
 
     @jax.jit
     @chex.assert_max_traces(4)
-    def step(state: TrainStateNoBuffer) -> Tuple[TrainStateNoBuffer, Info]:
+    def step(state: TrainStateWithBuffer) -> Tuple[TrainStateWithBuffer, Info]:
         key, subkey = jax.random.split(state.key)
         info = {}
 
@@ -55,6 +91,7 @@ def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
             return flow.log_prob_apply(state.flow_params, x)
 
         x0 = flow.sample_apply(state.flow_params, subkey, (batch_size,))
+        chex.assert_rank(x0, 2)  # Currently written assuming x only has 1 event dimension.
         point, log_w, smc_state, smc_info = smc.step(x0, state.smc_state, log_q_fn, log_p_fn)
         info.update(smc_info)
 
@@ -64,7 +101,7 @@ def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
         new_params = optax.apply_updates(state.flow_params, updates)
         info.update(loss=loss)
 
-        new_state = TrainStateNoBuffer(flow_params=new_params, key=key, opt_state=new_opt_state, smc_state=smc_state)
+        new_state = TrainStateWithBuffer(flow_params=new_params, key=key, opt_state=new_opt_state, smc_state=smc_state)
         return new_state, info
 
     return init, step
