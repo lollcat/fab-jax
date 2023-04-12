@@ -11,9 +11,6 @@ from fabjax.sampling.resampling import log_effective_sample_size, optionally_res
 from fabjax.utils.jax_util import broadcasted_where
 
 
-IntermediateLogProb = Callable[[chex.Array, int], chex.Array]
-
-
 class SMCState(NamedTuple):
     """State of the SMC sampler."""
     transition_operator_state: chex.ArrayTree  # For MCMC.
