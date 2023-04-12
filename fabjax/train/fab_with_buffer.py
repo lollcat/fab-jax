@@ -9,6 +9,7 @@ from jax.flatten_util import ravel_pytree
 from fabjax.sampling.smc import SequentialMonteCarloSampler, SMCState
 from fabjax.flow.flow import Flow, FlowParams
 from fabjax.buffer import PrioritisedBuffer, PrioritisedBufferState
+from fabjax.utils.optimize import IgnoreNanOptState
 
 Params = chex.ArrayTree
 LogProbFn = Callable[[chex.Array], chex.Array]
@@ -100,10 +101,14 @@ def build_fab_with_buffer_init_step_fns(
             flow_params, x, log_q_old, alpha, flow.log_prob_apply, w_adjust_clip)
         updates, new_opt_state = optimizer.update(grad, opt_state, params=flow_params)
         new_params = optax.apply_updates(flow_params, updates)
+        grad_norm = optax.global_norm(grad)
         info.update(loss=loss)
-        info.update(log10_grad_norm=jnp.log10(optax.global_norm(grad)))  # Makes scale nice for plotting
+        info.update(log10_grad_norm=jnp.log10(grad_norm))  # Makes scale nice for plotting
         info.update(log10_max_param_grad=jnp.log(jnp.max(ravel_pytree(grad)[0])))
+        if isinstance(opt_state, IgnoreNanOptState):
+            info.update(ignored_grad_count=opt_state.ignored_grads_count)
         return (new_params, new_opt_state), (info, log_w_adjust, log_q)
+
 
     @jax.jit
     @chex.assert_max_traces(4)

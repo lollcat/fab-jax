@@ -16,6 +16,7 @@ from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloS
     build_metropolis
 from fabjax.targets.gmm import GMM
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
+from fabjax.utils.optimize import get_optimizer, OptimizerConfig
 
 
 class FABTrainConfig(NamedTuple):
@@ -96,13 +97,10 @@ def setup_fab_config():
     use_64_bit = False
     alpha = 2.  # alpha-divergence param
     dim = 2
-    n_iterations = int(1e3)
+    n_iterations = int(3e3)
     n_eval = 10
     batch_size = 128
     plot_batch_size = 1000
-    lr = 1e-4
-    max_param_grad = 10000.
-    max_global_grad_norm = jnp.inf
 
     # Setup buffer
     with_buffer = True
@@ -113,7 +111,7 @@ def setup_fab_config():
 
     # Flow
     n_layers = 8
-    conditioner_mlp_units = (64, 64)
+    conditioner_mlp_units = (64, 64, 64)
 
     # smc.
     use_resampling = True
@@ -127,6 +125,16 @@ def setup_fab_config():
     tune_step_size = False
     n_intermediate_distributions = 4
     spacing_type = 'linear'
+
+    optimizer_config = OptimizerConfig(
+        init_lr=3e-4,
+        dynamic_grad_ignore_and_clip=True,
+        use_schedule=True,
+        peak_lr=3e-4,
+        end_lr=6e-5,
+        n_iter_total=n_iterations * n_updates_per_smc_forward_pass if with_buffer else n_iterations,
+        n_iter_warmup=10,
+    )
 
 
     # Setup flow and target.
@@ -155,11 +163,7 @@ def setup_fab_config():
                     alpha=alpha, use_resampling=use_resampling)
 
     # Optimizer
-    optimizer = optax.chain(optax.zero_nans(),
-                            optax.clip(max_param_grad),
-                            optax.clip_by_global_norm(max_global_grad_norm),
-                            optax.zero_nans(),
-                            optax.adam(lr))
+    optimizer, lr = get_optimizer(optimizer_config)
 
     # Prioritized buffer
     if with_buffer:
