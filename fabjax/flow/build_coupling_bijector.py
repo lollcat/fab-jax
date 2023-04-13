@@ -7,9 +7,7 @@ import jax.numpy as jnp
 
 from fabjax.flow.distrax_with_extra import SplitCouplingWithExtra, ChainWithExtra, BijectorWithExtra
 from fabjax.utils.nets import ConditionerMLP
-
-
-inverse_softplus = lambda x: jnp.log(jnp.exp(x) - 1.)
+from fabjax.utils.jax_util import inverse_softplus
 
 
 def make_conditioner(name, n_output_params, mlp_units, identity_init):
