@@ -105,6 +105,7 @@ def build_prioritised_buffer(
         Initialise the buffer state, by filling it above `min_sample_length`.
         """
         chex.assert_rank(x, 2)
+        chex.assert_shape(x[0], (dim,))
         chex.assert_equal_shape((x[:, 0], log_w, log_q_old))
         n_samples = x.shape[0]
         assert n_samples >= min_length_to_sample, "Buffer requires at least `min_sample_length` samples for init."

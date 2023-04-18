@@ -15,9 +15,9 @@ class ActNorm(distrax.Bijector):
                is_constant_jacobian = True,
                is_constant_log_det = True)
 
-        scale_logit = hk.get_parameter(name="scale_logit", shape=(dim,), init=jnp.zeros)
+        scale_logit = hk.get_parameter(name="scale_logit", shape=(dim,), init=jnp.zeros, dtype=float)
         self.scale = jax.nn.softplus(scale_logit + inverse_softplus(1.))
-        self.shift = hk.get_parameter(name="scale_logit", shape=(dim,), init=jnp.zeros)
+        self.shift = hk.get_parameter(name="scale_logit", shape=(dim,), init=jnp.zeros, dtype=float)
 
 
     def forward_and_log_det(self, x: chex.Array) -> Tuple[chex.Array, chex.Array]:
