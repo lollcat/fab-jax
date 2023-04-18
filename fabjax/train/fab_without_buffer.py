@@ -14,7 +14,23 @@ ParameterizedLogProbFn = Callable[[chex.ArrayTree, chex.Array], chex.Array]
 Info = dict
 
 
-def fab_loss_smc_samples(params, x: chex.Array, log_w: chex.Array, log_q_fn_apply: ParameterizedLogProbFn):
+def reverse_kl_loss(params: chex.ArrayTree,
+                    q_sample_and_log_prob_apply,
+                    log_q_fn_apply: ParameterizedLogProbFn,
+                    log_p_fn: LogProbFn,
+                    batch_size: int,
+                    path_gradient: bool = True,
+                    ):
+    x, log_q = q_sample_and_log_prob_apply(params, (batch_size,))
+    if path_gradient:
+        log_q = log_q_fn_apply(jax.lax.stop_gradient(params), x)
+    log_p = log_p_fn(x)
+    kl = jnp.mean(log_q - log_p)
+    return kl
+
+
+
+def fab_loss_smc_samples(params: chex.ArrayTree, x: chex.Array, log_w: chex.Array, log_q_fn_apply: ParameterizedLogProbFn):
     """Estimate FAB loss with a batch of samples from smc."""
     chex.assert_rank(log_w, 1)
     chex.assert_rank(x, 2)

@@ -63,7 +63,6 @@ class OptimizerConfig(NamedTuple):
     n_iter_warmup: Optional[int] = None
     peak_lr: Optional[float] = None
     end_lr: Optional[float] = None
-    warmup_n_epoch: Optional[int] = None
     max_global_norm: Optional[float] = None
     max_param_grad: Optional[float] = None
     dynamic_grad_ignore_and_clip: bool = False

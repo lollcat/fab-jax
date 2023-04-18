@@ -97,7 +97,7 @@ def setup_fab_config():
     use_64_bit = False
     alpha = 2.  # alpha-divergence param
     dim = 2
-    n_iterations = int(3e3)
+    n_iterations = int(5e3)
     n_eval = 10
     batch_size = 128
     plot_batch_size = 1000
@@ -112,6 +112,7 @@ def setup_fab_config():
     # Flow
     n_layers = 8
     conditioner_mlp_units = (64, 64, 64)
+    act_norm = True
 
     # smc.
     use_resampling = True
@@ -129,16 +130,17 @@ def setup_fab_config():
     optimizer_config = OptimizerConfig(
         init_lr=3e-4,
         dynamic_grad_ignore_and_clip=True,
-        use_schedule=True,
+        use_schedule=False,
         peak_lr=3e-4,
-        end_lr=6e-5,
+        end_lr=1e-5,
         n_iter_total=n_iterations * n_updates_per_smc_forward_pass if with_buffer else n_iterations,
         n_iter_warmup=10,
     )
 
 
     # Setup flow and target.
-    flow_config = FlowDistConfig(dim=dim, n_layers=n_layers, conditioner_mlp_units=conditioner_mlp_units)
+    flow_config = FlowDistConfig(dim=dim, n_layers=n_layers, conditioner_mlp_units=conditioner_mlp_units,
+                                 act_norm=act_norm)
     flow = build_flow(flow_config)
 
     if easy_mode:

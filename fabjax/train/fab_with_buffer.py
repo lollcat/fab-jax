@@ -55,6 +55,7 @@ def build_fab_with_buffer_init_step_fns(
         alpha: float = 2.,
         w_adjust_clip: float = 10.,
 ):
+    """Create the `init` and `step` functions that define the FAB algorithm."""
     assert smc.alpha == alpha
 
     def init(key: chex.PRNGKey) -> TrainStateWithBuffer:

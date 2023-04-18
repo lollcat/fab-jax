@@ -15,8 +15,9 @@ well, and then to move onto more challenging versions of the problem.
 Key components of FAB:
 - `sampling`: Running SMC with a trainable base q, and target p, targetting the optimal distribution for estimating alpha-divergence.
    - `metropolis`: Propose step by adding Gaussian noise to sample and then accept/reject. Includes step size tuning.
-   - `hmc`: Hamiltonean Monte Calro. I still need to get the step size tuning to be robust for this.
+   - `hmc`: Hamiltonean Monte Carlo. I still need to get the step size tuning to be robust for this.
 - `buffer`: Prioritised replay buffer. 
+
 these are written to be self-contained such that they can be easily ported into an existing code base.
 
 Additionally, we have

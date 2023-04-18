@@ -7,15 +7,16 @@ import jax.numpy as jnp
 from fabjax.flow.flow import FlowRecipe, Flow, create_flow
 from fabjax.flow.distrax_with_extra import ChainWithExtra
 from fabjax.flow.build_coupling_bijector import build_split_coupling_bijector
+from fabjax.flow.act_norm import build_act_norm_layer
 
 class FlowDistConfig(NamedTuple):
     dim: int
     n_layers: int
     conditioner_mlp_units: Sequence[int]
     type: Union[str, Sequence[str]] = 'split_coupling'
+    act_norm: bool = True
     identity_init: bool = True
     compile_n_unroll: int = 2
-    permute: bool = True
 
 
 def build_flow(config: FlowDistConfig) -> Flow:
@@ -36,7 +37,8 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
     def make_bijector():
         # Note that bijector.inverse moves through this forwards, and bijector.fowards reverses the bijector order
         bijectors = []
-
+        if config.act_norm:
+            bijectors.append(build_act_norm_layer(dim=config.dim, identity_init=config.identity_init))
         if 'split_coupling' in flow_type:
             bijector = build_split_coupling_bijector(
                 dim=config.dim,
