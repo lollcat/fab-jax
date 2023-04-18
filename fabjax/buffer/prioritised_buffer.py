@@ -126,6 +126,7 @@ def build_prioritised_buffer(
             buffer_state: PrioritisedBufferState) -> PrioritisedBufferState:
         """Update the buffer's state with a new batch of data."""
         chex.assert_rank(x, 2)
+        chex.assert_equal_shape((x[0], buffer_state.data.x[0]))
         chex.assert_equal_shape((x[:, 0], log_w, log_q))
         batch_size = x.shape[0]
         valid_samples = jnp.isfinite(log_w) & jnp.all(jnp.isfinite(x), axis=-1) \
@@ -170,6 +171,8 @@ def build_prioritised_buffer(
             log_q_old: Value of log_q when log_w was calculated.
             indices: Indices of samples for their location in the buffer state.
         """
+        assert batch_size <= min_length_to_sample, "Min length to sample must be greater than or equal to " \
+                                                   "the batch size."
         # Get indices.
         if sample_with_replacement:
             indices = jax.random.categorical(key, buffer_state.data.log_w, shape=(batch_size,))
