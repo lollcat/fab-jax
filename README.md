@@ -27,6 +27,9 @@ Additionally, we have
 
 
 # TODO:
+ - Improve stability. By making the GMM problem very hard we can break training, which is useful for finding 
+the most unstable parts of the code. 
  - Use sum-tree for prioritised buffer implementation. Would be nice to do everything with log probs.
  - make nice target distribution abstractions
  - Could use exponential moving average for flow params used in SMC (i.e. target network).
+ - Add `jaxtyping`
