@@ -93,8 +93,8 @@ def setup_fab_config():
     # Setup params
 
     # Train
-    easy_mode = True
-    use_64_bit = False # Can help improve stability.
+    easy_mode = False
+    use_64_bit = False  # Can help improve stability.
     alpha = 2.  # alpha-divergence param
     dim = 2
     n_eval = 10
@@ -115,14 +115,13 @@ def setup_fab_config():
 
     # smc.
     use_resampling = True
-    use_hmc = False
+    use_hmc = True
     hmc_n_outer_steps = 1
     hmc_init_step_size = 1e-3
     metro_n_outer_steps = 1
     metro_init_step_size = 5.
 
     target_p_accept = 0.65
-    tune_step_size = False
     n_intermediate_distributions = 4
     spacing_type = 'linear'
 
@@ -149,10 +148,12 @@ def setup_fab_config():
 
     # Setup smc.
     if use_hmc:
+        tune_step_size = True
         transition_operator = build_blackjax_hmc(dim=2, n_outer_steps=hmc_n_outer_steps,
                                                      init_step_size=hmc_init_step_size, target_p_accept=target_p_accept,
                                                      adapt_step_size=tune_step_size)
     else:
+        tune_step_size = False
         transition_operator = build_metropolis(dim, metro_n_outer_steps, metro_init_step_size,
                                                target_p_accept=target_p_accept, tune_step_size=tune_step_size)
 
