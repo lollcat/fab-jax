@@ -14,7 +14,7 @@ from fabjax.sampling.mcmc.blackjax_hmc_rewrite import kernel as hmc_kernel, init
 class HMCState(NamedTuple):
     key: chex.PRNGKey
     inverse_mass_maxtric: chex.Array
-    adaption_state: Optional[chex.ArrayTree] = None
+    step_size: chex.Array
 
 
 def build_blackjax_hmc(
@@ -23,20 +23,16 @@ def build_blackjax_hmc(
                  n_inner_steps: int = 5,
                  init_step_size: float = 1e-4,
                  adapt_step_size: bool = True,
-                 target_p_accept: float = 0.65
+                 target_p_accept: float = 0.65,
+                 step_size_multiplier: float = 1.02,
 ) -> TransitionOperator:
 
     one_step = hmc_kernel(divergence_threshold=1000)
 
-    if adapt_step_size:
-        adapt_init, adapt_update, _ = dual_averaging_adaptation(target_p_accept)
-
 
     def init(key: chex.PRNGKey) -> HMCState:
         inverse_mass_matrix = jnp.ones(dim)
-        adaption_state = adapt_init(init_step_size) if adapt_step_size else None
-        adaption_state = jax.tree_map(jnp.asarray, adaption_state)
-        return HMCState(key, inverse_mass_matrix, adaption_state)
+        return HMCState(key, inverse_mass_matrix, step_size=jnp.array(init_step_size))
 
     def step(point: Point,
              transition_operator_state: HMCState,
@@ -56,19 +52,19 @@ def build_blackjax_hmc(
             key = xs
             key_batch = jax.random.split(key, batch_size)
             hmc_state, transition_operator_state = body
-            step_size = jnp.exp(transition_operator_state.adaption_state.log_step_size) if adapt_step_size else \
-                init_step_size
             step_fn_partial = partial(one_step,
                                       log_q_fn=log_q_fn,
                                         log_p_fn=log_p_fn,
-                                        step_size=step_size,
+                                        step_size=transition_operator_state.step_size,
                                         inverse_mass_matrix=transition_operator_state.inverse_mass_maxtric,
                                         num_integration_steps=n_inner_steps)
             hmc_state, info = jax.vmap(step_fn_partial)(key_batch, hmc_state)
             if adapt_step_size:
-                new_adaption_state = adapt_update(transition_operator_state.adaption_state,
-                                                  jnp.mean(info.acceptance_rate))
-                transition_operator_state = transition_operator_state._replace(adaption_state=new_adaption_state)
+                step_size = jax.lax.cond(jnp.mean(info.acceptance_rate) > target_p_accept,
+                                         lambda step_size: step_size * step_size_multiplier,
+                                         lambda step_size: step_size / step_size_multiplier,
+                                         transition_operator_state.step_size)
+                transition_operator_state = transition_operator_state._replace(step_size=step_size)
             return (hmc_state, transition_operator_state), info
 
 
@@ -80,9 +76,7 @@ def build_blackjax_hmc(
 
         # Info for logging
         info = {f"mean_acceptance_rate": jnp.mean(infos.acceptance_rate)}
-        step_size = jnp.exp(transition_operator_state.adaption_state.log_step_size) if adapt_step_size else \
-            init_step_size
-        info.update(step_size=step_size)
+        info.update(step_size=transition_operator_state.step_size)
 
         point_kwargs = hmc_state._asdict()
         del(point_kwargs['beta']); del(point_kwargs['alpha'])

@@ -20,7 +20,7 @@ def build_metropolis(
                  init_step_size: float = 1.,
                  tune_step_size: bool = True,
                  target_p_accept: float = 0.65,
-                 step_size_multiplier: float = 1.05,
+                 step_size_multiplier: float = 1.02,
 ) -> TransitionOperator:
 
     def init(key: chex.PRNGKey) -> MetropolisState:
