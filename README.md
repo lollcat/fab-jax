@@ -2,6 +2,7 @@
 See [`examples/gmm.py`] for a simple example of running FAB.
 This library is currently being built - I will be steadily adding more features and improving the documentation.
 
+
 # Key tips
  - For FAB to work well we need SMC to preform reasonably well, where by reasonble we just mean that it produces samples that are
 better than samples from the flow by a noticeable margin.
