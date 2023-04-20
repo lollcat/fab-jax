@@ -7,6 +7,7 @@ import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from fabjax.train.generic_training_loop import TrainConfig, train, ListLogger, Logger
+from fabjax.train.evaluate import setup_fab_eval_function
 from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
     TrainStateNoBuffer, build_fab_with_buffer_init_step_fns, TrainStateWithBuffer
 from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, PrioritisedBuffer
@@ -27,6 +28,7 @@ class FABTrainConfig(NamedTuple):
     flow: Flow
     smc: SequentialMonteCarloSampler
     plotter: Callable
+    eval_fn: Callable
     log_p_fn: LogProbFn
     optimizer: optax.GradientTransformation
     use_buffer: bool
@@ -98,6 +100,7 @@ def setup_fab_config():
     dim = 2
     n_eval = 10
     batch_size = 128
+    eval_batch_size = 256
     plot_batch_size = 1000
 
     # Setup buffer
@@ -144,6 +147,7 @@ def setup_fab_config():
         n_mixes = 40
         n_iterations = int(5e3)
     gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=1.)
+    log_prob_target = gmm.log_prob
 
     # Setup smc.
     if use_hmc:
@@ -173,12 +177,22 @@ def setup_fab_config():
     # Plotter
     plotter = setup_plotter(flow=flow, smc=smc, log_p_fn=gmm.log_prob, plot_batch_size=plot_batch_size,
                             plot_bound=target_loc_scaling * 1.5, buffer=buffer)
+    
+    # Eval function
+    # Eval uses AIS, and sets alpha=1 which is equivalent to targetting p.
+    ais_eval = build_smc(transition_operator=transition_operator,
+                    n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
+                    alpha=1., use_resampling=False)
+    eval_fn = setup_fab_eval_function(flow=flow, ais=ais_eval, log_p_x=log_prob_target,
+                                      batch_size=eval_batch_size,
+                                      inner_batch_size=batch_size)
 
     config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
-                            log_p_fn=gmm.log_prob, smc=smc, optimizer=optimizer, plot_batch_size=plot_batch_size,
+                            log_p_fn=log_prob_target, smc=smc, optimizer=optimizer, plot_batch_size=plot_batch_size,
                             n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
-                            use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip)
+                            use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip,
+                            eval_fn=eval_fn)
 
     return config
 
@@ -190,7 +204,7 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
         assert fab_config.buffer is not None and fab_config.n_updates_per_smc_forward_pass is not None
         init, step = build_fab_with_buffer_init_step_fns(
             flow=fab_config.flow, log_p_fn=fab_config.log_p_fn,
-            smc=fab_config.smc, optimizer = fab_config.optimizer,
+            smc=fab_config.smc, optimizer=fab_config.optimizer,
             batch_size=fab_config.batch_size,
             buffer=fab_config.buffer, n_updates_per_smc_forward_pass=fab_config.n_updates_per_smc_forward_pass,
             w_adjust_clip=fab_config.w_adjust_clip
@@ -200,12 +214,12 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
             fab_config.flow, log_p_fn=fab_config.log_p_fn,
             smc=fab_config.smc, optimizer=fab_config.optimizer,
             batch_size=fab_config.batch_size)
+        
 
     def eval_and_plot_fn(state, subkey, iteration, save, plots_dir) -> dict:
-        # chex.assert_tree_all_finite(state.flow_params)
-        # chex.assert_tree_all_finite(state.opt_state)
         fab_config.plotter(state, subkey)
-        return {}
+        info = fab_config.eval_fn(state, subkey)
+        return info
 
     train_config = TrainConfig(n_iteration=fab_config.n_iteration,
                 n_checkpoints=fab_config.n_checkpoints,
