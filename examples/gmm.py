@@ -5,9 +5,8 @@ import optax
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
-from molboil.train.train import TrainConfig, Logger, ListLogger
-from molboil.train.train import train
 
+from fabjax.train.generic_training_loop import TrainConfig, train, ListLogger, Logger
 from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
     TrainStateNoBuffer, build_fab_with_buffer_init_step_fns, TrainStateWithBuffer
 from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, PrioritisedBuffer
