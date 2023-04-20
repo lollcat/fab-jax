@@ -3,12 +3,12 @@ import jax
 import distrax
 import matplotlib.pyplot as plt
 
-from molboil.utils.loggers import ListLogger
-from molboil.utils.plotting import plot_history
+
 
 from fabjax.sampling.mcmc.metropolis import build_metropolis
 from fabjax.sampling.base import create_point
-from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair
+from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair, plot_history
+from fabjax.utils.logging import ListLogger
 
 
 def test_metropolis_produces_good_samples():
