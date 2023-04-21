@@ -103,20 +103,20 @@ def setup_fab_config():
     eval_batch_size = 256
     plot_batch_size = 1000
 
-    # Setup buffer
+    # Setup buffer.
     with_buffer = True
     buffer_max_length = batch_size*100
     buffer_min_length = batch_size*10
     n_updates_per_smc_forward_pass = 4
     w_adjust_clip = 10.
 
-    # Flow
+    # Flow.
     n_layers = 8
-    conditioner_mlp_units = (64, 64)
+    conditioner_mlp_units = (80, 80)
     act_norm = False
 
-    # smc.
-    use_resampling = True
+    # SMC.
+    use_resampling = False
     use_hmc = True
     hmc_n_outer_steps = 1
     hmc_init_step_size = 1e-3
@@ -124,8 +124,8 @@ def setup_fab_config():
     metro_init_step_size = 5.
 
     target_p_accept = 0.65
-    n_intermediate_distributions = 4
-    spacing_type = 'linear'
+    n_intermediate_distributions = 2
+    spacing_type = 'geometric '
 
     optimizer_config = OptimizerConfig(
         init_lr=1e-4,
