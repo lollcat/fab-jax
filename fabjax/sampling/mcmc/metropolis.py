@@ -47,7 +47,7 @@ def build_metropolis(
 
             log_p_accept = get_intermediate_log_prob(new_point.log_q, new_point.log_p, beta=beta, alpha=alpha) -\
                            get_intermediate_log_prob(point.log_q, point.log_p, beta=beta, alpha=alpha)
-            log_threshold = jax.random.exponential(key2)
+            log_threshold = - jax.random.exponential(key2)
 
             accept = (log_p_accept > log_threshold) & jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p)
             point = jax.lax.cond(accept, lambda p_new, p: p_new, lambda p_new, p: p, new_point, point)

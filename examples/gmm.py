@@ -117,18 +117,19 @@ def setup_fab_config():
 
     # SMC.
     use_resampling = False
-    use_hmc = True
+    use_hmc = False
     hmc_n_outer_steps = 1
     hmc_init_step_size = 1e-3
     metro_n_outer_steps = 1
+    hmc_n_inner_steps = 3
     metro_init_step_size = 5.
 
     target_p_accept = 0.65
     n_intermediate_distributions = 2
-    spacing_type = 'geometric '
+    spacing_type = 'linear'
 
     optimizer_config = OptimizerConfig(
-        init_lr=1e-4,
+        init_lr=3e-4,
         dynamic_grad_ignore_and_clip=True  # Ignore massive gradients.
     )
 
@@ -146,15 +147,17 @@ def setup_fab_config():
         target_loc_scaling = 40
         n_mixes = 40
         n_iterations = int(5e3)
-    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=1.)
+    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=1., seed=1)
     log_prob_target = gmm.log_prob
 
     # Setup smc.
     if use_hmc:
         tune_step_size = True
         transition_operator = build_blackjax_hmc(dim=2, n_outer_steps=hmc_n_outer_steps,
-                                                     init_step_size=hmc_init_step_size, target_p_accept=target_p_accept,
-                                                     adapt_step_size=tune_step_size)
+                                                     init_step_size=hmc_init_step_size,
+                                                 target_p_accept=target_p_accept,
+                                                 adapt_step_size=tune_step_size,
+                                                 n_inner_steps=hmc_n_inner_steps)
     else:
         tune_step_size = False
         transition_operator = build_metropolis(dim, metro_n_outer_steps, metro_init_step_size,

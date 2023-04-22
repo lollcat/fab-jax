@@ -11,7 +11,7 @@ from fabjax.utils.plot import plot_contours_2D, plot_marginal_pair
 def test_hmc_produces_good_samples():
 
     dim = 2
-    beta = 1.  # Equivalent to setting target to p.
+    beta = 0.5  # Equivalent to setting target to p.
     key = jax.random.PRNGKey(0)
     batch_size = 1000
     n_outer_steps = 100
@@ -24,8 +24,8 @@ def test_hmc_produces_good_samples():
     loc_q = jnp.zeros((dim,))
     dist_q = distrax.MultivariateNormalDiag(loc_q, jnp.ones((dim,)))
 
-    loc_p = jnp.zeros((dim,)) + 3
-    scale_p = jnp.ones((dim,)) * 0.5
+    loc_p = jnp.zeros((dim,)) + 1
+    scale_p = jnp.ones((dim,))
     dist_p = distrax.MultivariateNormalDiag(loc_p, scale_p)
 
     # Initialise MCMC chain.
@@ -41,13 +41,17 @@ def test_hmc_produces_good_samples():
 
     # Visualise samples.
     bound = 10
-    fig, axs = plt.subplots(1, 2)
+    fig, axs = plt.subplots(1, 3, sharex=True, sharey=True)
     plot_contours_2D(dist_q.log_prob, axs[0], bound=bound)
     plot_marginal_pair(x_new.x, axs[0], bounds=(-bound, bound), alpha=0.2)
     plot_contours_2D(dist_p.log_prob, axs[1], bound=bound)
     plot_marginal_pair(x_new.x, axs[1], bounds=(-bound, bound), alpha=0.2)
+    plot_contours_2D(dist_p.log_prob, axs[2], bound=bound)
+    plot_marginal_pair(dist_p.sample(seed=key, sample_shape=(batch_size,)),
+                       axs[2], bounds=(-bound, bound), alpha=0.2)
     axs[0].set_title("samples vs log prob q contours")
     axs[1].set_title("samples vs log prob p contours")
+    axs[2].set_title("p samples vs p contours")
     plt.tight_layout()
     plt.show()
 

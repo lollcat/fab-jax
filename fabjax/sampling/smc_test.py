@@ -38,7 +38,7 @@ def plot_samples(x_smc, x_p, x_q, dist_q, dist_p):
     plot_contours_2D(dist_p.log_prob, axs[1, 1], bound=bound)
     plot_marginal_pair(x_p, axs[1, 1], bounds=(-bound, bound), alpha=0.2)
 
-    axs[0, 1].set_title("samples smc vs log prob q contours")
+    axs[0, 0].set_title("samples smc vs log prob q contours")
     axs[0, 1].set_title("samples smc vs log prob p^2/q contours")
     axs[1, 0].set_title("samples q vs log prob q contours")
     axs[1, 1].set_title("samples p vs log prob p contours")
@@ -66,7 +66,7 @@ def setup_smc(
         transition_n_outer_steps: int = 1,
         target_p_accept = 0.65,
         spacing_type = 'linear',
-        resampling: bool = True,
+        resampling: bool = False,
         alpha = 2.,
         use_hmc: bool = False
 ):
@@ -82,7 +82,7 @@ def setup_smc(
 
     smc = build_smc(transition_operator=transition_operator,
                     n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
-                    alpha=alpha)
+                    alpha=alpha, use_resampling=resampling)
     return smc
 
 
@@ -182,11 +182,10 @@ def test_smc_visualise_with_num_dists():
         smc = setup_smc(n_smc_distributions, tune_step_size=True, alpha=alpha, spacing_type='geometric')
         smc_state = smc.init(key)
 
-        # Generate samples.
-        key, subkey = jax.random.split(key)
-        positions = dist_q.sample(seed=subkey, sample_shape=(batch_size,))
-
         for i in range(20):  # Allow for some step size tuning - ends up being SUPER IMPORTANT.
+            # Generate samples.
+            key, subkey = jax.random.split(key)
+            positions = dist_q.sample(seed=subkey, sample_shape=(batch_size,))
             point, log_w, smc_state, info = smc.step(positions, smc_state, dist_q.log_prob, dist_p.log_prob)
 
         Z_estimate = jnp.mean(jnp.exp(log_w))
