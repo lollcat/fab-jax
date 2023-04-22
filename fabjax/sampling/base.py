@@ -18,13 +18,23 @@ class Point(NamedTuple):
 
 
 TransitionOperatorState = chex.ArrayTree
-Beta = chex.Array
-Alpha = float
+
+class TransitionOperatorStep(Protocol):
+    def __call__(self,
+             point: Point,
+             transition_operator_state: TransitionOperatorState,
+             beta: chex.Array,
+             alpha: float,
+             log_q_fn: LogProbFn,
+             log_p_fn: LogProbFn) -> Tuple[Point, TransitionOperatorState, Dict]:
+        """Perform MCMC step with the intermediate target given by:
+            \log target = ((1-beta) + beta*(1-alpha)) * log_q + beta*alpha*log_p
+        """
+
 
 class TransitionOperator(NamedTuple):
     init: Callable[[chex.PRNGKey], chex.ArrayTree]
-    step: Callable[[Point, TransitionOperatorState, Beta, Alpha, LogProbFn, LogProbFn],
-            Tuple[Point, TransitionOperatorState, Dict]]
+    step: TransitionOperatorStep
     # Whether the transition operator uses gradients (True for HMC, False for metropolis).
     uses_grad: bool = True
 

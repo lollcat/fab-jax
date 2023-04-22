@@ -73,16 +73,19 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
     """Perform inner iteration of AIS, incrementing the log_w appropriately."""
     beta = betas[ais_step_index]
 
-    new_point, trans_op_state, info = transition_operator.step(point, trans_op_state, beta, alpha, log_q_fn, log_p_fn)
+    new_point, trans_op_state, info = transition_operator.step(
+        point=point, transition_operator_state=trans_op_state,
+        beta=beta, alpha=alpha, log_q_fn=log_q_fn, log_p_fn=log_p_fn)
 
     # Remove invalid samples.
     valid_samples = jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p) & \
                     jnp.alltrue(jnp.isfinite(new_point.x), axis=-1)
-    point = jax.tree_map(lambda a, b: broadcasted_where(valid_samples, a, b), new_point, point)
+    info.update(n_valid_samples = jnp.sum(valid_samples))
+    new_point = jax.tree_map(lambda a, b: broadcasted_where(valid_samples, a, b), new_point, point)
 
-    log_w = log_w + log_weight_contribution_point(point, ais_step_index, betas, alpha)
+    log_w = log_w + log_weight_contribution_point(new_point, ais_step_index, betas, alpha)
 
-    return (point, log_w), (trans_op_state, info)
+    return (new_point, log_w), (trans_op_state, info)
 
 
 def replace_invalid_samples_with_valid_ones(point: Point, key: chex.PRNGKey) -> Point:
@@ -103,7 +106,7 @@ def build_smc(
         n_intermediate_distributions: int,
         spacing_type: str = 'linear',
         alpha: float = 2.,
-        use_resampling: bool = True,
+        use_resampling: bool = False,
         resampling_threshold: float = 0.3
               ) -> SequentialMonteCarloSampler:
     """
@@ -176,7 +179,7 @@ def build_smc(
 
         # Sometimes the flow produces nan samples - remove these.
         key, subkey = jax.random.split(smc_state.key)
-        point0 = replace_invalid_samples_with_valid_ones(point0, key)
+        point0 = replace_invalid_samples_with_valid_ones(point0, subkey)
 
         log_w_init = log_weight_contribution_point(point0, 0, betas=betas, alpha=alpha)
         log_w = log_w_init
@@ -192,10 +195,11 @@ def build_smc(
                 point, log_w, log_ess = optionally_resample(key=key, log_weights=log_w, samples=point,
                                                    resample_threshold=resampling_threshold)
                 info.update(ess=jnp.exp(log_ess))
-            (point, log_w), (trans_op_state, info_transition) = ais_inner_transition(point, log_w, trans_op_state, betas,
-                                                                          ais_step_index,
-                                                                          transition_operator, log_q_fn, log_p_fn,
-                                                                          alpha)
+            (point, log_w), (trans_op_state, info_transition) = ais_inner_transition(
+                point, log_w, trans_op_state, betas,
+                ais_step_index,
+                transition_operator, log_q_fn, log_p_fn,
+                alpha)
             info.update(info_transition)
             return (point, log_w), (trans_op_state, info)
 
