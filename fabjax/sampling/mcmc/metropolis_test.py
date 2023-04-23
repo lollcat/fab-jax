@@ -29,8 +29,8 @@ def tesst_metropolis_produces_good_samples():
     loc_q = jnp.zeros((dim,))
     dist_q = distrax.MultivariateNormalDiag(loc_q, jnp.ones((dim,)))
 
-    loc_p = jnp.zeros((dim,)) + 1
-    scale_p = jnp.ones((dim,))
+    loc_p = jnp.zeros((dim,)) + 3
+    scale_p = jnp.ones((dim,))*0.5
     dist_p = distrax.MultivariateNormalDiag(loc_p, scale_p)
 
 
