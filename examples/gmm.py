@@ -122,7 +122,7 @@ def setup_fab_config():
     hmc_init_step_size = 1e-3
     metro_n_outer_steps = 1
     hmc_n_inner_steps = 3
-    metro_init_step_size = 5.
+    metro_init_step_size = 5. # Needs to be big enough to jump between modes
 
     target_p_accept = 0.65
     n_intermediate_distributions = 2
@@ -147,7 +147,7 @@ def setup_fab_config():
         target_loc_scaling = 40
         n_mixes = 40
         n_iterations = int(5e3)
-    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=1., seed=1)
+    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=2., seed=0)
     log_prob_target = gmm.log_prob
 
     # Setup smc.
