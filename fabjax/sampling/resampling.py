@@ -57,7 +57,7 @@ def smc_simple_resampling(key: RandomKey, log_weights: chex.Array, samples: chex
 
 
 def optionally_resample(key: RandomKey, log_weights: Array, samples: Samples,
-                        resample_threshold: Array) -> Tuple[Array, Array, Array]:
+                        resample_threshold: float) -> Tuple[Array, Array, Array]:
     """Call simple_resampling on log_weights/samples if ESS is below threshold."""
     # In the case where we don't resample we just return the current
     # samples and weights.

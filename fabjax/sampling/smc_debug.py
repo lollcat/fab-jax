@@ -1,61 +1,17 @@
-from typing import NamedTuple, Tuple, Protocol
+"""Like SMC but with for loop to make debugging easier."""
+
+from typing import Tuple
 from functools import partial
 
 import chex
 import jax.numpy as jnp
 import jax
-from typing import Callable
 
-from fabjax.sampling.base import TransitionOperator, LogProbFn, create_point, Point, get_intermediate_log_prob
+from fabjax.sampling.base import TransitionOperator, LogProbFn, create_point, Point
 from fabjax.sampling.resampling import log_effective_sample_size, optionally_resample
-from fabjax.utils.jax_util import broadcasted_where
-
-
-class SMCState(NamedTuple):
-    """State of the SMC sampler."""
-    transition_operator_state: chex.ArrayTree  # For MCMC.
-    key: chex.PRNGKey  # Control randomness in resampling.
-
-
-class SmcStepFn(Protocol):
-    def __call__(self, x0: chex.Array, smc_state: SMCState, log_q_fn: LogProbFn, log_p_fn: LogProbFn) -> \
-            Tuple[Point, chex.Array, SMCState, dict]:
-        """
-        Run the SMC forward pass.
-
-        Args:
-            x0: Samples from `q` for initialising the SMC chain.
-            smc_state: State of the SMC sampler. Contains the parameters for the transition operator.
-            log_q_fn: Log density of the base distribution (typically the flow being trained).
-            log_p_fn: Log density of the target distribution that we wish to approximate with the distribution `q`.
-
-        Returns:
-            point: Final point in the SMC forward pass.
-            log_w: Unnormalized log importance weights.
-            smc_state: Updated SMC state.
-            info: Info for diagnostics/logging.
-        """
-
-
-class SequentialMonteCarloSampler(NamedTuple):
-    """
-    Attributes:
-        init: Initialise the SMC sampler state.
-        step: Run a forward pass of the SMC sampler.
-        transition_operator: Transition operator for performing mcmc.
-        use_resampling: Whether resampling is used. If not used then the algorithm becomes AIS.
-        betas: The values \in [0, 1] for interpolating between the base and SMC target distibution.
-        alpha: Alpha value in alpha-divergence. The SMC target will be set to \alpha log_p - (\alpha - 1) log_q
-            which is the optimal target distribution for estimating the alpha-divergence loss.
-            Typically we use \alpha=2. Alternatively setting \alpha=1 sets the AIS target to \log_p.
-    """
-    init: Callable[[chex.PRNGKey], SMCState]
-    step: SmcStepFn
-    transition_operator: TransitionOperator
-    use_resampling: bool
-    betas: chex.Array
-    alpha: float = 2.
-
+from fabjax.sampling.smc import SequentialMonteCarloSampler, SMCState, replace_invalid_samples_with_valid_ones,\
+    get_intermediate_log_prob, broadcasted_where
+    # log_weight_contribution_point, ais_inner_transition
 
 
 def log_weight_contribution_point(point: Point, ais_step_index: int, betas: chex.Array, alpha: float):
@@ -87,6 +43,9 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
         point=point, transition_operator_state=trans_op_state,
         beta=beta, alpha=alpha, log_q_fn=log_q_fn, log_p_fn=log_p_fn)
 
+    # assert (new_point.log_q == log_q_fn(new_point.x)).all()
+    # assert (new_point.log_p == log_p_fn(new_point.x)).all()
+
     # Remove invalid samples.
     valid_samples = jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p) & \
                     jnp.alltrue(jnp.isfinite(new_point.x), axis=-1)
@@ -99,20 +58,6 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
 
     return (new_point, log_w), (trans_op_state, info)
 
-
-def replace_invalid_samples_with_valid_ones(point: Point, key: chex.PRNGKey) -> Point:
-    """Replace invalid (non-finite) samples in the point with valid ones (where valid ones are sampled uniformly)."""
-    valid_samples = jnp.isfinite(point.log_q) & jnp.isfinite(point.log_p) & \
-                    jnp.alltrue(jnp.isfinite(point.x), axis=-1)
-    p = jnp.where(valid_samples, jnp.ones_like(valid_samples), jnp.zeros_like(valid_samples))
-    indices = jax.random.choice(key, jnp.arange(valid_samples.shape[0]), p=p, shape=valid_samples.shape)
-    alt_points = jax.tree_map(lambda x: x[indices], point)
-
-    # Replace invalid samples with valid samples
-    point = jax.tree_map(lambda a, b: broadcasted_where(valid_samples, a, b), point, alt_points)
-    return point
-
-
 def build_smc(
         transition_operator: TransitionOperator,
         n_intermediate_distributions: int,
@@ -122,26 +67,6 @@ def build_smc(
         resampling_threshold: float = 0.3,
         verbose: bool = False
               ) -> SequentialMonteCarloSampler:
-    """
-    Create a Sequential Monte Carlo Sampler.
-
-    Args:
-        transition_operator: Transition operator for MCMC (e.g. HMC).
-        n_intermediate_distributions: Number of intermediate distributions (number of MCMC steps).
-        spacing_type: Spacing between intermediate distributions `linear` or `geometric`.
-        alpha: Alpha value in alpha-divergence. The SMC target will be set to \alpha log_p - (\alpha - 1) log_q
-            which is the optimal target distribution for estimating the alpha-divergence loss.
-            Typically we use \alpha=2. Alternatively setting \alpha=1 sets the AIS target to \log_p.
-        use_resampling: Whether or not to re-sample whenever the effective sample size drops below
-            `resampling_threshold`. Is equivalent to AIS if resampling is not used.
-        resampling_threshold: Threshold for resampling.
-        verbose: Whether to include info from mcmc.
-
-    Returns:
-        smc: A Sequential Monte Carlo Sampler.
-
-    """
-
     if spacing_type == "geometric":
         # Rough heuristic, copying ratio used in example in AIS paper.
         # One quarter of Beta linearly spaced between 0 and 0.01
@@ -160,7 +85,9 @@ def build_smc(
     def init(key: chex.PRNGKey) -> SMCState:
         """Initialise the state of the SMC sampler."""
         key1, key2 = jax.random.split(key)
-        trans_op_state = jax.vmap(transition_operator.init)(jax.random.split(key1, n_intermediate_distributions))
+        trans_op_state = transition_operator.init(key1)
+        trans_op_state = jax.tree_map(lambda x: jnp.repeat(x[None, ...], n_intermediate_distributions, axis=0),
+                                      trans_op_state)
         return SMCState(trans_op_state, key2)
 
 
@@ -192,39 +119,41 @@ def build_smc(
         # Sometimes the flow produces nan samples - remove these.
         key, subkey = jax.random.split(smc_state.key)
         point0 = replace_invalid_samples_with_valid_ones(point0, subkey)
+        # chex.assert_trees_all_equal(replace_invalid_samples_with_valid_ones(point0, subkey).x, point0.x)
 
         log_w_init = log_weight_contribution_point(point0, 0, betas=betas, alpha=alpha)
+        # log_w_init == log_p_fn(point0.x) - log_q_fn(point0.x)
         log_w = log_w_init
 
-        # Run MCMC from point0 sampling from pi_0 to point_n generated by MCMC targetting pi_{n-1}.
-        # Setup scan body function.
-        def body_fn(carry: Point, xs: Tuple[chex.PRNGKey, chex.ArrayTree, int]) -> \
-                Tuple[Tuple[Point, chex.Array], Tuple[chex.ArrayTree, dict]]:
-            info = {}
-            point, log_w = carry
-            key, trans_op_state, ais_step_index = xs
-            if use_resampling:
-                point, log_w, log_ess = optionally_resample(key=key, log_weights=log_w, samples=point,
-                                                   resample_threshold=resampling_threshold)
-                info.update(ess=jnp.exp(log_ess))
-            (point, log_w), (trans_op_state, info_transition) = ais_inner_transition(
-                point=point, log_w=log_w, trans_op_state=trans_op_state, betas=betas,
-                ais_step_index=ais_step_index,
-                transition_operator=transition_operator, log_q_fn=log_q_fn, log_p_fn=log_p_fn,
-                alpha=alpha)
-            info.update(info_transition)
-            return (point, log_w), (trans_op_state, info)
-
-        # Run scan.
+        point = point0
         key, subkey = jax.random.split(key)
         per_step_inputs = (jax.random.split(subkey, n_intermediate_distributions),
                            smc_state.transition_operator_state,
                            jnp.arange(n_intermediate_distributions) + 1)
-        scan_init = (point0, log_w)
-        (point, log_w), (trans_op_states, infos) = jax.lax.scan(body_fn, init=scan_init, xs=per_step_inputs,
-                                                                length=n_intermediate_distributions)
+        trans_op_states = []
+        infos = []
+        for i in jnp.arange(n_intermediate_distributions):
+                info = {}
+                key, trans_op_state, ais_step_index = jax.tree_map(lambda x: x[i], per_step_inputs)
+                assert ais_step_index == (i + 1)
+                if use_resampling:
+                    point, log_w, log_ess = optionally_resample(key=key, log_weights=log_w, samples=point,
+                                                       resample_threshold=resampling_threshold)
+                    info.update(ess=jnp.exp(log_ess))
+                (point, log_w), (trans_op_state, info_transition) = ais_inner_transition(
+                    point=point, log_w=log_w, trans_op_state=trans_op_state, betas=betas,
+                    ais_step_index=ais_step_index,
+                    transition_operator=transition_operator, log_q_fn=log_q_fn, log_p_fn=log_p_fn,
+                    alpha=alpha)
+                info.update(info_transition)
 
-        chex.assert_trees_all_equal_structs(smc_state.transition_operator_state, trans_op_states)
+                infos.append(info)
+                trans_op_states.append(trans_op_state)
+        if n_intermediate_distributions != 0:
+            infos = jax.tree_map(lambda *x: jnp.stack(x), *infos)
+            trans_op_states = jax.tree_map(lambda *x: jnp.stack(x), *trans_op_states)
+
+            chex.assert_trees_all_equal_structs(smc_state.transition_operator_state, trans_op_states)
         smc_state = SMCState(transition_operator_state=trans_op_states, key=key)
 
         # Info for logging.
