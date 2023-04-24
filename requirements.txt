@@ -6,7 +6,6 @@ optax
 pytest
 tqdm
 matplotlib
-tqdm
 pandas
 jupyterlab
 wandb
