@@ -9,9 +9,11 @@ from fabjax.utils.jax_util import broadcasted_where
 
 def sample_without_replacement(key: chex.Array, logits: chex.Array, n: int) -> chex.Array:
     # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
-    z = jax.random.gumbel(key=key, shape=logits.shape)
+    key1, key2 = jax.random.split(key)
+    z = jax.random.gumbel(key=key1, shape=logits.shape)
     # vals, indices = jax.lax.approx_max_k(z + logits, n)
     vals, indices = jax.lax.top_k(z + logits, n)
+    indices = jax.random.permutation(key2, indices)
     return indices
 
 
@@ -212,7 +214,7 @@ def build_prioritised_buffer(
         log_w, log_q = jax.tree_map(
             partial(broadcasted_where, valid_adjustment),
             (log_w, log_q),
-            (buffer_state.data.log_w[indices], buffer_state.data.log_q_old[indices]))
+            (-jnp.ones_like(log_w)*jnp.inf, jnp.zeros_like(log_q)))
 
         # adjust log weights in buffer state
         log_w = buffer_state.data.log_w.at[indices].set(log_w)
