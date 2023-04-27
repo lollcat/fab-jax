@@ -34,6 +34,7 @@ class FABTrainConfig(NamedTuple):
     use_buffer: bool
     buffer: Optional[PrioritisedBuffer] = None
     n_updates_per_smc_forward_pass: Optional[int] = None
+    use_reverse_kl_loss: bool = False
     w_adjust_clip: float = 10.
     n_checkpoints: int = 0
     logger: Logger = ListLogger()
@@ -95,8 +96,10 @@ def setup_fab_config():
 
     # Train
     easy_mode = False
+    train_long = True
     use_64_bit = False  # Can help improve stability.
     alpha = 2.  # alpha-divergence param
+    use_kl_loss = False  # Include additional reverse KL loss.
     dim = 2
     n_eval = 10
     batch_size = 128
@@ -146,7 +149,10 @@ def setup_fab_config():
     else:
         target_loc_scaling = 40
         n_mixes = 40
-        n_iterations = int(5e3)
+        if train_long:
+            n_iterations = int(1e4)
+        else:
+            n_iterations = int(5e3)
     gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=2., seed=0)
     log_prob_target = gmm.log_prob
 
@@ -195,7 +201,7 @@ def setup_fab_config():
                             n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
                             use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip,
-                            eval_fn=eval_fn)
+                            eval_fn=eval_fn, use_reverse_kl_loss=use_kl_loss)
 
     return config
 
@@ -210,7 +216,8 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
             smc=fab_config.smc, optimizer=fab_config.optimizer,
             batch_size=fab_config.batch_size,
             buffer=fab_config.buffer, n_updates_per_smc_forward_pass=fab_config.n_updates_per_smc_forward_pass,
-            w_adjust_clip=fab_config.w_adjust_clip
+            w_adjust_clip=fab_config.w_adjust_clip,
+            use_reverse_kl_loss=fab_config.use_reverse_kl_loss
         )
     else:
         init, step = build_fab_no_buffer_init_step_fns(
