@@ -96,7 +96,7 @@ def setup_fab_config():
 
     # Train
     easy_mode = False
-    train_long = True
+    train_long = False
     use_64_bit = False  # Can help improve stability.
     alpha = 2.  # alpha-divergence param
     use_kl_loss = False  # Include additional reverse KL loss.
@@ -120,21 +120,17 @@ def setup_fab_config():
 
     # SMC.
     use_resampling = False
-    use_hmc = False
+    use_hmc = True
     hmc_n_outer_steps = 1
     hmc_init_step_size = 1e-3
     metro_n_outer_steps = 1
     hmc_n_inner_steps = 3
-    metro_init_step_size = 5. # Needs to be big enough to jump between modes
+    metro_init_step_size = 5.  # Needs to be big enough to jump between modes
 
     target_p_accept = 0.65
     n_intermediate_distributions = 2
     spacing_type = 'linear'
 
-    optimizer_config = OptimizerConfig(
-        init_lr=3e-4,
-        dynamic_grad_ignore_and_clip=True  # Ignore massive gradients.
-    )
 
 
     # Setup flow and target.
@@ -152,7 +148,14 @@ def setup_fab_config():
         if train_long:
             n_iterations = int(1e4)
         else:
-            n_iterations = int(5e3)
+            n_iterations = int(2e3)
+
+    optimizer_config = OptimizerConfig(
+        init_lr=3e-4,
+        dynamic_grad_ignore_and_clip=True  # Ignore massive gradients.
+    )
+
+
     gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=2., seed=0)
     log_prob_target = gmm.log_prob
 
