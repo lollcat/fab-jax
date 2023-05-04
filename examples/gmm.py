@@ -3,7 +3,6 @@ from typing import NamedTuple, Callable, Optional, Union
 import chex
 import optax
 import jax
-import jax.numpy as jnp
 import matplotlib.pyplot as plt
 
 from fabjax.train.generic_training_loop import TrainConfig, train, ListLogger, Logger
