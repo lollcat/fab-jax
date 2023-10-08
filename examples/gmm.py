@@ -98,6 +98,7 @@ def setup_fab_config():
     v0 = False
 
     # Train
+    init_lr = 1e-4
     easy_mode = False
     train_long = False
     use_64_bit = False  # Can help improve stability.
@@ -154,7 +155,7 @@ def setup_fab_config():
             n_iterations = int(2e3)
 
     optimizer_config = OptimizerConfig(
-        init_lr=3e-4,
+        init_lr=init_lr,
         dynamic_grad_ignore_and_clip=True  # Ignore massive gradients.
     )
 

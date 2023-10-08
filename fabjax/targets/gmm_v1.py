@@ -7,7 +7,7 @@ import distrax
 https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution/gm.py
 """
 class GaussianMixture2D:
-    def __init__(self):
+    def __init__(self, scale=0.5477222):
         super().__init__()
         mean_ls = [
             [-5., -5.], [-5., 0.], [-5., 5.],
@@ -17,7 +17,7 @@ class GaussianMixture2D:
         nmode = len(mean_ls)
         mean = jnp.stack([jnp.array(xy) for xy in mean_ls])
         comp = distrax.Independent(
-            distrax.Normal(loc=mean, scale=jnp.ones_like(mean)),
+            distrax.Normal(loc=mean, scale=jnp.ones_like(mean)*scale),
             reinterpreted_batch_ndims=1
         )
         mix = distrax.Categorical(logits=jnp.ones(nmode))
