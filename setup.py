@@ -14,7 +14,7 @@ with open(path.join(here, "README.md"), encoding="utf-8") as f:
 with open(path.join(here, "requirements.txt"), encoding="utf-8") as f:
     all_reqs = f.read().split("\n")
 
-# install_requires = [x.strip() for x in all_reqs]
+install_requires = [x.strip() for x in all_reqs]
 
 setup(
     name="fabjax",
@@ -34,7 +34,7 @@ setup(
     include_package_data=True,
     author="Laurence Midgley",
     author_email="laurencemidgley@gmail.com",
-    install_requires=None, #install_requires,
+    install_requires=install_requires,
     extras_require={
         "docs": ["mkdocs","mkdocstrings[python]","mkdocs-jupyter"]
     },
