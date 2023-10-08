@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 import distrax
 
+
 class GMM:
     def __init__(self, dim, n_mixes, loc_scaling, log_var_scaling=0.1, seed=0):
         self.seed = seed

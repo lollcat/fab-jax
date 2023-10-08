@@ -13,9 +13,12 @@ from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, Prioritis
 from fabjax.flow import build_flow, Flow, FlowDistConfig
 from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloSampler, simple_resampling, \
     build_metropolis
-from fabjax.targets.gmm import GMM
+
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 from fabjax.utils.optimize import get_optimizer, OptimizerConfig
+
+from fabjax.targets.gmm_v0 import GMM
+from fabjax.targets.gmm_v1 import GaussianMixture2D
 
 
 class FABTrainConfig(NamedTuple):
@@ -92,6 +95,7 @@ def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float,
 
 def setup_fab_config():
     # Setup params
+    v0 = False
 
     # Train
     easy_mode = False
@@ -101,8 +105,8 @@ def setup_fab_config():
     use_kl_loss = False  # Include additional reverse KL loss.
     dim = 2
     n_eval = 10
-    batch_size = 128
-    eval_batch_size = 256
+    batch_size = 100
+    eval_batch_size = int(2e3)
     plot_batch_size = 1000
 
     # Setup buffer.
@@ -154,8 +158,13 @@ def setup_fab_config():
         dynamic_grad_ignore_and_clip=True  # Ignore massive gradients.
     )
 
+    if v0:
+        gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=2., seed=0)
+        plot_bound = target_loc_scaling * 1.5
+    else:
+        gmm = GaussianMixture2D()
+        plot_bound = 8
 
-    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=2., seed=0)
     log_prob_target = gmm.log_prob
 
     # Setup smc.
@@ -187,7 +196,7 @@ def setup_fab_config():
 
     # Plotter
     plotter = setup_plotter(flow=flow, smc=smc, log_p_fn=gmm.log_prob, plot_batch_size=plot_batch_size,
-                            plot_bound=target_loc_scaling * 1.5, buffer=buffer)
+                            plot_bound=plot_bound, buffer=buffer)
     
     # Eval function
     # Eval uses AIS, and sets alpha=1 which is equivalent to targetting p.

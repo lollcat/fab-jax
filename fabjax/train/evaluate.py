@@ -30,7 +30,7 @@ def setup_fab_eval_function(
         def inner_fn(carry: None, xs: chex.PRNGKey) -> Tuple[None, Tuple[chex.Array, chex.Array]]:
             """Perform SMC forward pass and grab just the importance weights."""
             key = xs
-            x0, log_q_flow = flow.sample_and_log_prob_apply(state.flow_params, key, (batch_size,))
+            x0, log_q_flow = flow.sample_and_log_prob_apply(state.flow_params, key, (inner_batch_size,))
             point, log_w, smc_state, smc_info = ais.step(x0, state.smc_state, log_q_fn, log_p_x)
             log_w_flow = log_p_x(x0) - log_q_flow
             return None, (log_w_flow, log_w)
@@ -38,11 +38,17 @@ def setup_fab_eval_function(
         # Run scan function.
         n_batches = (batch_size // inner_batch_size) + 1
         _, (log_w_flow, log_w_ais) = jax.lax.scan(inner_fn, init=None, xs=jax.random.split(key, n_batches))
-    
+
+        n_samples = n_batches * inner_batch_size
+        assert n_samples == log_w_ais.flatten().shape[0]
+
         # Compute metrics
         info = {}
         info.update(eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow.flatten())),
-                    eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())))
+                    eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())),
+                    log_z_flow=jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples),
+                    log_z_ais=jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
+                    )
         return info
 
     return eval_fn

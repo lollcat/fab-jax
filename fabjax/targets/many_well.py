@@ -1,7 +1,6 @@
 import jax.numpy as jnp
 import jax
-from fabjax.types import HaikuDistribution
-from fabjax.agent.fab_agent import Evaluator, State
+
 
 class Energy:
     """
