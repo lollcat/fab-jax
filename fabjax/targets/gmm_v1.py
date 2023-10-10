@@ -1,5 +1,12 @@
+from typing import List
+
+import chex
 import jax.numpy as jnp
 import distrax
+import matplotlib.pyplot as plt
+
+from fabjax.targets.base import Target
+from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
 
 """
@@ -7,9 +14,11 @@ import distrax
 https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution/gm.py
 """
 
-class GaussianMixture2D:
+class GaussianMixture2D(Target):
     def __init__(self, scale=0.5477222):
-        super().__init__()
+        dim = 2
+        super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
+                         n_model_samples_eval=1000, n_target_samples_eval=1000)
         mean_ls = [
             [-5., -5.], [-5., 0.], [-5., 5.],
             [0., -5.], [0., 0.], [0., 5.],
@@ -34,28 +43,15 @@ class GaussianMixture2D:
     def sample(self, seed, sample_shape):
         return self.gmm.sample(seed=seed, sample_shape=sample_shape)
 
-    # def viz_pdf(self, fsave="ou-density.png"):
-    #     x = torch.linspace(-8, 8, 100).cuda()
-    #     y = torch.linspace(-8, 8, 100).cuda()
-    #     X, Y = torch.meshgrid(x, y)
-    #     x = torch.stack([X.flatten(), Y.flatten()], dim=1) #?
-    #
-    #     density = self.unnorm_pdf(x)
-    #     # x, pdf = as_numpy([x, density])
-    #     x, pdf = torch.from_numpy(x), torch.from_numpy(density)
-    #
-    #     fig, axs = plt.subplots(1, 1, figsize=(1 * 7, 1 * 7))
-    #     axs.plot(x, pdf)
-    #
-    #     # plt.contourf(X, Y, density, levels=20, cmap='viridis')
-    #     # plt.colorbar()
-    #     # plt.xlabel('x')
-    #     # plt.ylabel('y')
-    #     # plt.title('2D Function Plot')
-    #
-    #     fig.savefig(fsave)
-    #     plt.close(fig)
-    #
-    # def __getitem__(self, idx):
-    #     del idx
-    #     return self.data[0]
+    def visualise(
+            self,
+            samples: chex.Array,
+            axes: List[plt.Axes],
+             ) -> None:
+        """Visualise samples from the model."""
+        assert len(axes) == self.n_plots
+
+        ax = axes[0]
+        plot_contours_2D(self.log_prob, ax, bound=self._plot_bound, levels=20)
+        plot_marginal_pair(samples, ax, bounds=(-self._plot_bound, self._plot_bound))
+

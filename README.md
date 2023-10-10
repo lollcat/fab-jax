@@ -1,5 +1,5 @@
 # Flow Annealed Importance Sampling Bootstrap (FAB) with Jax
-See [`examples/gmm.py`] for a simple example of running FAB.
+See `experiments` for a simple training runs using FAB.
 This library is currently being built - I will be steadily adding more features and improving the documentation.
 
 ## Install
@@ -27,14 +27,13 @@ these are written to be self-contained such that they can be easily ported into 
 
 Additionally, we have
  - `flow`: Create minimal realnvp normalizing flow for the gmm problem (using distrax).
- - `targets`: energy functions for training
- - `train`: training script for fab (not modular, but can be copy and pasted and adapted)
+ - `targets`: Target distributions to be fit.
+ - `train`: Training script for fab (not modular, but can be copy and pasted and adapted).
 
 
 ## TODO:
  - Improve stability. By making the GMM problem very hard we can break training, which is useful for finding 
 the most unstable parts of the code. 
  - Use sum-tree for prioritised buffer implementation. Would be nice to do everything with log probs.
- - Make nice target distribution abstractions. 
  - Could use exponential moving average for flow params used in SMC (i.e. target network).
  - Add `jaxtyping`. 

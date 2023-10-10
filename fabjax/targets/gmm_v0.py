@@ -13,8 +13,8 @@ from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 class GMM(Target):
     def __init__(
             self,
-            dim: int, n_mixes: int, loc_scaling: float,
-            var_scaling: float = 4.0, seed: int = 0,
+            dim: int = 2, n_mixes: int = 20, loc_scaling: float = 20,
+            var_scaling: float = 2.0, seed: int = 0,
                  ) -> None:
         super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
                          n_model_samples_eval=1000, n_target_samples_eval=1000)
