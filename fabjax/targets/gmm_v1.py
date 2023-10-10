@@ -6,6 +6,7 @@ import distrax
 2-D Guassian mixture
 https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution/gm.py
 """
+
 class GaussianMixture2D:
     def __init__(self, scale=0.5477222):
         super().__init__()
