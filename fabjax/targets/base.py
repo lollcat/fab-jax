@@ -11,30 +11,50 @@ from fabjax.train.evaluate import calculate_log_forward_ess
 
 LogProbFn = Callable[[chex.Array], chex.Array]
 
+
 class Target(abc.ABC):
+    """Abstraction of target distribution that allows our training and evaluation scripts to be generic."""
     def __init__(self,
+                 dim: int,
+                 log_Z: Optional[float],
+                 can_sample: bool,
+                 n_plots: int,
                  n_model_samples_eval: int,
-                 n_target_samples_eval: Optional[int] = None,
+                 n_target_samples_eval: Optional[int],
                  ):
-        self.n_model_samples_eval = n_model_samples_eval
-        self.n_target_samples_eval = n_target_samples_eval
+        self._n_model_samples_eval = n_model_samples_eval
+        self._n_target_samples_eval = n_target_samples_eval
+        self._dim = dim
+        self._log_Z = log_Z
+        self._n_plots = n_plots
+        self._can_sample = can_sample
+
+    @property
+    def dim(self) -> int:
+        """Dimensionality of the problem."""
+        return self._dim
+
+    @property
+    def n_plots(self) -> int:
+        """Number of matplotlib axes that samples are visualized on."""
+        return self._n_plots
 
     @property
     def can_sample(self) -> bool:
         """Whether the target may be sampled form."""
-        return False
+        return self._can_sample
 
     @property
     def log_Z(self) -> Union[int, None]:
-        """Normalizing constant."""
-        return None
+        """Log normalizing constant if available."""
+        return self._log_Z
 
     def sample(self, seed: chex.PRNGKey, sample_shape: chex.Shape) -> chex.Array:
         raise NotImplemented
 
     @abc.abstractmethod
     def log_prob(self, value: chex.Array) -> chex.Array:
-        raise NotImplemented
+        """(Possibly unnormalized) target probability density."""
 
     def evaluate(self,
                  model_log_prob_fn: LogProbFn,
@@ -61,9 +81,7 @@ class Target(abc.ABC):
 
     @abc.abstractmethod
     def visualise(self,
-                 model_log_prob_fn: LogProbFn,
-                 model_sample_fn: Callable[[chex.PRNGKey, chex.Shape], chex.Array],
-                 key: chex.PRNGKey,
-                 ) -> List[plt.Figure]:
+                  samples: chex.Array,
+                  axes: List[plt.Axes],
+                  ) -> None:
         """Visualise samples from the model."""
-        return []

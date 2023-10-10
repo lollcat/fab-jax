@@ -1,22 +1,26 @@
-from typing import Callable, Tuple
+from typing import Callable, Tuple, Optional, List
 
 import chex
 import jax
 import jax.numpy as jnp
 import distrax
+import matplotlib.pyplot as plt
 
 from fabjax.targets.base import Target, LogProbFn
+from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
 
 class GMM(Target):
-    def __init__(self, dim: int, n_mixes: int, loc_scaling: float,
-                 var_scaling: float = 1.0, seed: int = 0,
-                 eval_n_samples: int = 1000,
+    def __init__(
+            self,
+            dim: int, n_mixes: int, loc_scaling: float,
+            var_scaling: float = 1.0, seed: int = 0,
                  ) -> None:
+        super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
+                         n_model_samples_eval=1000, n_target_samples_eval=1000)
+
         self.seed = seed
         self.n_mixes = n_mixes
-        self.dim = dim
-        self.eval_n_samples = eval_n_samples
 
         key = jax.random.PRNGKey(seed)
         logits = jnp.ones(n_mixes)
@@ -32,6 +36,9 @@ class GMM(Target):
             components_distribution=components_dist,
         )
 
+        self._plot_bound = loc_scaling * 1.5
+
+
     def log_prob(self, x: chex.Array) -> chex.Array:
         log_prob = self.distribution.log_prob(x)
 
@@ -45,11 +52,13 @@ class GMM(Target):
         return self.distribution.sample(seed=seed, sample_shape=sample_shape)
 
 
-
-    def visualise(self,
-                 model_log_prob_fn: LogProbFn,
-                 model_sample_fn: Callable[[chex.PRNGKey, chex.Shape], chex.Array],
-                 key: chex.PRNGKey,
-                 ) -> dict:
+    def visualise(
+            self,
+            samples: chex.Array,
+            axes: List[plt.Axes],
+             ) -> None:
         """Visualise samples from the model."""
-        raise NotImplemented
+        assert len(axes) == self.n_plots
+
+        ax = axes[0]
+        plot_marginal_pair(samples, ax, bounds=(-self._plot_bound, self._plot_bound))

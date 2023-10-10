@@ -11,11 +11,11 @@ from fabjax.train.fab_without_buffer import TrainStateNoBuffer
 
 
 def setup_fab_eval_function(
-                      flow: Flow,
-                      ais: SequentialMonteCarloSampler,
-                      log_p_x: Callable[[chex.Array], chex.Array],
-                      batch_size: int,
-                      inner_batch_size: int
+      flow: Flow,
+      ais: SequentialMonteCarloSampler,
+      log_p_x: Callable[[chex.Array], chex.Array],
+      batch_size: int,
+      inner_batch_size: int
 ) -> Callable[[chex.ArrayTree, chex.PRNGKey], dict]:
     """Evaluate the ESS of the flow, and AIS. """
     assert ais.alpha == 1.  # Make sure target is set to p.
