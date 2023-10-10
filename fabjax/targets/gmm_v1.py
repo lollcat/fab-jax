@@ -9,12 +9,12 @@ from fabjax.targets.base import Target
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
 
-"""
-2-D Guassian mixture
-https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution/gm.py
-"""
-
 class GaussianMixture2D(Target):
+    """
+    2-D Guassian mixture.
+    https://arxiv.org/abs/2310.02679
+    https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution/gm.py
+    """
     def __init__(self, scale=0.5477222):
         dim = 2
         super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
