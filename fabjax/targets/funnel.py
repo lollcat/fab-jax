@@ -2,8 +2,11 @@ import jax.numpy as jnp
 import distrax
 
 class FunnelSet():
+    # TODO: Add problem to Target abstraction
     """
     x0 ~ N(0, 3^2), xi | x0 ~ N(0, exp(x0)), i = 1, ..., 9
+        https://arxiv.org/abs/2310.02679
+    https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution
     """
     def __init__(self, dim):
         super().__init__()

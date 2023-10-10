@@ -49,6 +49,8 @@ class DoubleWellEnergy(Energy):
 
 
 class ManyWellEnergy:
+    # TODO: Add problem to Target abstraction
+
     def __init__(self, dim: int = 4, *args, **kwargs):
         assert dim % 2 == 0
         self.n_wells = dim // 2
