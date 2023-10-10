@@ -29,7 +29,7 @@ def plot_contours_2D(log_prob_func,
 def plot_marginal_pair(samples: chex.Array,
                   ax: Optional[plt.Axes] = None,
                   marginal_dims: Tuple[int, int] = (0, 1),
-                  bounds: Tuple[int, int] = (-5, 5),
+                  bounds: Tuple[float, float] = (-5, 5),
                   alpha: float = 0.5):
     """Plot samples from marginal of distribution for a given pair of dimensions."""
     if not ax:

@@ -9,3 +9,5 @@ matplotlib
 pandas
 jupyterlab
 wandb
+hydra-core
+hydra-joblib-launcher

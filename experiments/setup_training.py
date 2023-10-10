@@ -5,8 +5,9 @@ import optax
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from omegaconf import DictConfig
 
-from fabjax.train.generic_training_loop import TrainConfig, train, ListLogger, Logger
+from fabjax.train.generic_training_loop import TrainConfig, ListLogger, Logger
 from fabjax.train.evaluate import setup_fab_eval_function
 from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
     TrainStateNoBuffer, build_fab_with_buffer_init_step_fns, TrainStateWithBuffer
@@ -14,9 +15,10 @@ from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, Prioritis
 from fabjax.flow import build_flow, Flow, FlowDistConfig
 from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloSampler, simple_resampling, \
     build_metropolis
-from fabjax.targets.gmm import GMM
-from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
+
 from fabjax.utils.optimize import get_optimizer, OptimizerConfig
+
+from fabjax.targets.base import Target
 
 
 class FABTrainConfig(NamedTuple):
@@ -45,7 +47,7 @@ class FABTrainConfig(NamedTuple):
 
 
 
-def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float,
+def setup_plotter(flow, smc, target: Target, plot_batch_size,
                   buffer: Optional[PrioritisedBuffer] = None):
     @jax.jit
     @chex.assert_max_traces(3)
@@ -55,7 +57,7 @@ def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float,
         def log_q_fn(x: chex.Array) -> chex.Array:
             return flow.log_prob_apply(state.flow_params, x)
 
-        point, log_w, smc_state, smc_info = smc.step(x0, state.smc_state, log_q_fn, log_p_fn)
+        point, log_w, smc_state, smc_info = smc.step(x0, state.smc_state, log_q_fn, target.log_prob)
         x_smc = point.x
         _, x_smc_resampled = simple_resampling(key, log_w, x_smc)
 
@@ -70,66 +72,58 @@ def setup_plotter(flow, smc, log_p_fn, plot_batch_size, plot_bound: float,
         x0, x_smc, x_smc_resampled, x_buffer = get_data_for_plotting(state, key)
 
         if buffer:
-            fig, axs = plt.subplots(2, 2, figsize=(10, 10))
-            axs = axs.flatten()
-            plot_marginal_pair(x_buffer, axs[3], bounds=(-plot_bound, plot_bound))
-            plot_contours_2D(log_p_fn, axs[3], bound=plot_bound, levels=50)
-            axs[3].set_title("buffer samples")
+            figs_and_axes = [plt.subplots(2, 2, figsize=(10, 10)) for _ in range(target.n_plots)]
+            figs = [fig for fig, axs in figs_and_axes]
+            axs = [axs.flatten() for fig, axs in figs_and_axes]
+            target.visualise(x_buffer, [ax[3] for ax in axs])
+            for ax in axs:
+                ax[3].set_title("buffer samples")
         else:
-            fig, axs = plt.subplots(3, figsize=(5, 15))
-        plot_marginal_pair(x0, axs[0], bounds=(-plot_bound, plot_bound))
-        plot_marginal_pair(x_smc, axs[1], bounds=(-plot_bound, plot_bound))
-        plot_marginal_pair(x_smc_resampled, axs[2], bounds=(-plot_bound, plot_bound))
-        plot_contours_2D(log_p_fn, axs[0], bound=plot_bound, levels=50)
-        plot_contours_2D(log_p_fn, axs[1], bound=plot_bound, levels=50)
-        plot_contours_2D(log_p_fn, axs[2], bound=plot_bound, levels=50)
-        axs[0].set_title("flow samples")
-        axs[1].set_title("smc samples")
-        axs[2].set_title("resampled smc samples")
+            figs_and_axes = [plt.subplots(3, figsize=(5, 15)) for _ in range(target.n_plots)]
+            figs = [fig for fig, axs in figs_and_axes]
+            axs = [axs for fig, axs in figs_and_axes]
+        target.visualise(x0, [ax[0] for ax in axs])
+        target.visualise(x_smc, [ax[1] for ax in axs])
+        target.visualise(x_smc_resampled, [ax[2] for ax in axs])
+
+        for ax in axs:
+            ax[0].set_title("flow samples")
+            ax[1].set_title("smc samples")
+            ax[2].set_title("resampled smc samples")
+
         plt.tight_layout()
         plt.show()
     return plot
 
 
-def setup_fab_config():
-    # Setup params
+def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
+    dim = target.dim
 
     # Train
-    easy_mode = False
-    train_long = False
-    use_64_bit = False  # Can help improve stability.
-    alpha = 2.  # alpha-divergence param
-    use_kl_loss = False  # Include additional reverse KL loss.
-    dim = 2
-    n_eval = 10
-    batch_size = 128
-    eval_batch_size = 256
-    plot_batch_size = 1000
+    use_64_bit = cfg.training.use_64_bit  # Can help improve stability.
+    alpha = cfg.fab.alpha  # alpha-divergence param
+    use_kl_loss = cfg.fab.use_kl_loss  # Include additional reverse KL loss.
+    n_eval = cfg.training.n_eval
+    batch_size = cfg.training.batch_size
+    eval_batch_size = cfg.training.eval_batch_size
+    plot_batch_size = cfg.training.plot_batch_size
 
     # Setup buffer.
-    with_buffer = True
-    buffer_max_length = batch_size*100
-    buffer_min_length = batch_size*10
-    n_updates_per_smc_forward_pass = 4
-    w_adjust_clip = 10.
+    with_buffer = cfg.fab.buffer.with_buffer
+    buffer_max_length = batch_size*cfg.fab.buffer.buffer_max_length_in_batches
+    buffer_min_length = batch_size*cfg.fab.buffer.buffer_min_length_in_batches
+    n_updates_per_smc_forward_pass = cfg.fab.buffer.n_updates_per_smc_forward_pass
+    w_adjust_clip = jnp.inf if cfg.fab.w_adjust_clip is None else cfg.fab.w_adjust_clip
 
     # Flow.
-    n_layers = 8
-    conditioner_mlp_units = (80, 80)
-    act_norm = False
+    n_layers = cfg.flow.n_layers
+    conditioner_mlp_units = cfg.flow.conditioner_mlp_units
+    act_norm = cfg.flow.act_norm
 
     # SMC.
-    use_resampling = False
-    use_hmc = True
-    hmc_n_outer_steps = 1
-    hmc_init_step_size = 1e-3
-    metro_n_outer_steps = 1
-    hmc_n_inner_steps = 3
-    metro_init_step_size = 5.  # Needs to be big enough to jump between modes
-
-    target_p_accept = 0.65
-    n_intermediate_distributions = 2
-    spacing_type = 'linear'
+    use_resampling = cfg.fab.smc.use_resampling
+    n_intermediate_distributions = cfg.fab.smc.n_intermediate_distributions
+    spacing_type = cfg.fab.smc.spacing_type
 
 
 
@@ -138,39 +132,29 @@ def setup_fab_config():
                                  act_norm=act_norm)
     flow = build_flow(flow_config)
 
-    if easy_mode:
-        target_loc_scaling = 10
-        n_mixes = 4
-        n_iterations = int(2e3)
-    else:
-        target_loc_scaling = 40
-        n_mixes = 40
-        if train_long:
-            n_iterations = int(1e4)
-        else:
-            n_iterations = int(2e3)
-
     optimizer_config = OptimizerConfig(
-        init_lr=3e-4,
-        dynamic_grad_ignore_and_clip=True  # Ignore massive gradients.
+        init_lr=cfg.training.optimizer.lr,
+        dynamic_grad_ignore_and_clip=cfg.training.optimizer.dynamic_grad_ignore_and_clip  # Ignore massive gradients.
     )
 
-
-    gmm = GMM(dim, n_mixes=n_mixes, loc_scaling=target_loc_scaling, log_var_scaling=2., seed=0)
-    log_prob_target = gmm.log_prob
+    log_prob_target = target.log_prob
 
     # Setup smc.
-    if use_hmc:
-        tune_step_size = True
-        transition_operator = build_blackjax_hmc(dim=2, n_outer_steps=hmc_n_outer_steps,
-                                                     init_step_size=hmc_init_step_size,
-                                                 target_p_accept=target_p_accept,
-                                                 adapt_step_size=tune_step_size,
-                                                 n_inner_steps=hmc_n_inner_steps)
+    if cfg.fab.smc.transition_operator == 'hmc':
+        transition_operator = build_blackjax_hmc(
+            dim=target.dim,
+            n_outer_steps=cfg.fab.smc.hmc.n_outer_steps,
+            init_step_size=cfg.fab.smc.hmc.init_step_size,
+            target_p_accept=cfg.fab.smc.hmc.target_p_accept,
+            adapt_step_size=cfg.fab.smc.hmc.tune_step_size,
+            n_inner_steps=cfg.fab.smc.hmc.n_inner_steps)
+    elif cfg.fab.smc.transition_operator == "metropolis":
+        transition_operator = build_metropolis(target.dim, cfg.fab.smc.metropolis.n_outer_steps,
+                                               cfg.fab.smc.metropolis.init_step_size,
+                                               target_p_accept=cfg.fab.smc.metropolis.target_p_accept,
+                                               tune_step_size=cfg.fab.smc.metropolis.tune_step_size)
     else:
-        tune_step_size = False
-        transition_operator = build_metropolis(dim, metro_n_outer_steps, metro_init_step_size,
-                                               target_p_accept=target_p_accept, tune_step_size=tune_step_size)
+        raise NotImplementedError
 
     smc = build_smc(transition_operator=transition_operator,
                     n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
@@ -187,19 +171,31 @@ def setup_fab_config():
         n_updates_per_smc_forward_pass = None
 
     # Plotter
-    plotter = setup_plotter(flow=flow, smc=smc, log_p_fn=gmm.log_prob, plot_batch_size=plot_batch_size,
-                            plot_bound=target_loc_scaling * 1.5, buffer=buffer)
+    plotter = setup_plotter(flow=flow, smc=smc, target=target, plot_batch_size=plot_batch_size, buffer=buffer)
     
     # Eval function
     # Eval uses AIS, and sets alpha=1 which is equivalent to targetting p.
     ais_eval = build_smc(transition_operator=transition_operator,
                     n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
                     alpha=1., use_resampling=False)
-    eval_fn = setup_fab_eval_function(flow=flow, ais=ais_eval, log_p_x=log_prob_target,
+    _eval_fn = setup_fab_eval_function(flow=flow, ais=ais_eval, log_p_x=log_prob_target,
                                       batch_size=eval_batch_size,
                                       inner_batch_size=batch_size)
 
-    config = FABTrainConfig(dim=dim, n_iteration=n_iterations, batch_size=batch_size, flow=flow,
+    @jax.jit
+    def eval_fn(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey) -> dict:
+        key1, key2 = jax.random.split(key)
+        info = _eval_fn(state, key1)
+        target_info = target.evaluate(
+            model_log_prob_fn=lambda x: flow.log_prob_apply(state.flow_params, x),
+            model_sample_and_log_prob_fn=lambda key, shape: flow.sample_and_log_prob_apply(state.flow_params, key, shape),
+            key=key2
+        )
+        info.update(target_info)
+        return info
+
+
+    config = FABTrainConfig(dim=dim, n_iteration=cfg.training.n_epoch, batch_size=batch_size, flow=flow,
                             log_p_fn=log_prob_target, smc=smc, optimizer=optimizer, plot_batch_size=plot_batch_size,
                             n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
@@ -209,7 +205,7 @@ def setup_fab_config():
     return config
 
 
-def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
+def setup_general_train_config(fab_config: FABTrainConfig) -> TrainConfig:
     """Convert fab_config into what we need for running the molboil training loop."""
 
     if fab_config.use_buffer:
@@ -246,9 +242,3 @@ def setup_molboil_train_config(fab_config: FABTrainConfig) -> TrainConfig:
                 use_64_bit=fab_config.use_64_bit
                 )
     return train_config
-
-
-if __name__ == '__main__':
-    fab_config = setup_fab_config()
-    train_config = setup_molboil_train_config(fab_config)
-    train(train_config)

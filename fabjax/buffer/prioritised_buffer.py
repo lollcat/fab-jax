@@ -180,7 +180,9 @@ def build_prioritised_buffer(
         if sample_with_replacement:
             indices = jax.random.categorical(key, buffer_state.data.log_w, shape=(batch_size,))
         else:
-            indices = sample_without_replacement(key, buffer_state.data.log_w, batch_size)
+            key1, key2 = jax.random.split(key)
+            indices = sample_without_replacement(key1, buffer_state.data.log_w, batch_size)
+            indices = jax.random.permutation(key2, indices)
 
         return buffer_state.data.x[indices], buffer_state.data.log_q_old[indices], indices
 
