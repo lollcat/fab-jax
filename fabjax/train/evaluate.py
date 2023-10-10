@@ -1,11 +1,11 @@
-from typing import Union, Tuple, Callable
+from typing import Union, Tuple, Callable, Optional
 
 import chex
 import jax
 import jax.numpy as jnp
 from fabjax.sampling.smc import SequentialMonteCarloSampler
 from fabjax.sampling.resampling import log_effective_sample_size
-from fabjax.flow.flow import Flow, FlowParams
+from fabjax.flow.flow import Flow
 from fabjax.train.fab_with_buffer import TrainStateWithBuffer
 from fabjax.train.fab_without_buffer import TrainStateNoBuffer
 
@@ -13,7 +13,7 @@ from fabjax.train.fab_without_buffer import TrainStateNoBuffer
 def setup_fab_eval_function(
                       flow: Flow,
                       ais: SequentialMonteCarloSampler,
-                      log_p_x,
+                      log_p_x: Callable[[chex.Array], chex.Array],
                       batch_size: int,
                       inner_batch_size: int
 ) -> Callable[[chex.ArrayTree, chex.PRNGKey], dict]:
@@ -44,11 +44,37 @@ def setup_fab_eval_function(
 
         # Compute metrics
         info = {}
-        info.update(eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow.flatten())),
-                    eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())),
-                    log_z_flow=jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples),
-                    log_z_ais=jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
+        info.update(
+            eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow.flatten())),
+            eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())),
+            log_z_flow=jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples),
+            log_z_ais=jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
                     )
         return info
 
     return eval_fn
+
+
+def calculate_log_forward_ess(
+        log_w: chex.Array,
+        mask: Optional[chex.Array] = None,
+        log_Z: Optional[float] = None
+) -> chex.Array:
+
+    """Calculate forward ess.
+    log_w = p(x)/q(x), where x ~ p(x).
+    This can be passed as the `further_fn` to `eacf.train.base.eval_fn`."""
+    if mask is None:
+        mask = jnp.ones_like(log_w)
+
+    chex.assert_equal_shape((log_w, mask))
+    log_w = jnp.where(mask, log_w, jnp.zeros_like(log_w))  # make sure log_w finite
+
+    if log_Z is None:
+        log_z_inv = jax.nn.logsumexp(-log_w, b=mask) - jnp.log(jnp.sum(mask))
+    else:
+        log_z_inv = - log_Z
+
+    log_z_expectation_p_over_q = jax.nn.logsumexp(log_w, b=mask) - jnp.log(jnp.sum(mask))
+    log_forward_ess = - log_z_inv - log_z_expectation_p_over_q
+    return log_forward_ess
