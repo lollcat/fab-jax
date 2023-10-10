@@ -24,6 +24,7 @@ class GaussianMixture2D:
         mix = distrax.Categorical(logits=jnp.ones(nmode))
         self.gmm = distrax.MixtureSameFamily(mixture_distribution=mix,
                                              components_distribution=comp)
+        self._plot_bound = 8
 
     def log_prob(self, x):
         log_prob = self.gmm.log_prob(x)

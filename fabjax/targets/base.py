@@ -22,8 +22,8 @@ class Target(abc.ABC):
                  n_model_samples_eval: int,
                  n_target_samples_eval: Optional[int],
                  ):
-        self._n_model_samples_eval = n_model_samples_eval
-        self._n_target_samples_eval = n_target_samples_eval
+        self.n_model_samples_eval = n_model_samples_eval
+        self.n_target_samples_eval = n_target_samples_eval
         self._dim = dim
         self._log_Z = log_Z
         self._n_plots = n_plots

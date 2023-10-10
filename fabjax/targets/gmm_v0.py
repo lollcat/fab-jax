@@ -1,4 +1,4 @@
-from typing import Callable, Tuple, Optional, List
+from typing import List
 
 import chex
 import jax
@@ -6,7 +6,7 @@ import jax.numpy as jnp
 import distrax
 import matplotlib.pyplot as plt
 
-from fabjax.targets.base import Target, LogProbFn
+from fabjax.targets.base import Target
 from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 
 
@@ -14,7 +14,7 @@ class GMM(Target):
     def __init__(
             self,
             dim: int, n_mixes: int, loc_scaling: float,
-            var_scaling: float = 1.0, seed: int = 0,
+            var_scaling: float = 4.0, seed: int = 0,
                  ) -> None:
         super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
                          n_model_samples_eval=1000, n_target_samples_eval=1000)
@@ -62,3 +62,4 @@ class GMM(Target):
 
         ax = axes[0]
         plot_marginal_pair(samples, ax, bounds=(-self._plot_bound, self._plot_bound))
+        plot_contours_2D(self.log_prob, ax, bound=self._plot_bound, levels=50)

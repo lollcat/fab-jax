@@ -21,9 +21,8 @@ def setup_fab_eval_function(
     assert ais.alpha == 1.  # Make sure target is set to p.
     assert ais.use_resampling is False  # Make sure we are doing AIS, not SMC.
 
-    
-    @jax.jit
-    def eval_fn(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey):
+
+    def eval_fn(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey) -> dict:
         def log_q_fn(x: chex.Array) -> chex.Array:
             return flow.log_prob_apply(state.flow_params, x)
         
