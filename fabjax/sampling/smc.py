@@ -89,7 +89,7 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
 
     # Remove invalid samples.
     valid_samples = jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p) & \
-                    jnp.alltrue(jnp.isfinite(new_point.x), axis=-1)
+                    jnp.all(jnp.isfinite(new_point.x), axis=-1)
     info.update(n_valid_samples = jnp.sum(valid_samples))
     new_point = jax.tree_map(lambda a, b: broadcasted_where(valid_samples, a, b), new_point, point)
 
