@@ -267,7 +267,7 @@ def setup_general_train_config(fab_config: FABTrainConfig) -> TrainConfig:
         info = fab_config.eval_fn(state, subkey)
         return info
 
-    train_config = TrainConfig(n_iteration=fab_config.n_iteration,
+    train_config = TrainConfig(n_iteration=int(fab_config.n_iteration),
                 n_checkpoints=fab_config.n_checkpoints,
                 logger = fab_config.logger,
                 seed = fab_config.seed,

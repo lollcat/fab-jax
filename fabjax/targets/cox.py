@@ -21,7 +21,7 @@ class CoxDist(Target):
         dim = int(num_bins_per_dim ** 2)
 
         super().__init__(dim=dim, log_Z=self.gt_logz(), can_sample=False, n_plots=0,
-                         n_model_samples_eval=1000, n_target_samples_eval=1000)
+                         n_model_samples_eval=1000, n_target_samples_eval=2000)
 
     def gt_logz(self):
         if self.num_bins_per_dim == 40:
