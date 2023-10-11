@@ -1,4 +1,5 @@
 defaults:
+  - training: default
   - hydra: default
   - _self_
 
