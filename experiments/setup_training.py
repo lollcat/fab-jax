@@ -1,13 +1,17 @@
 from typing import NamedTuple, Callable, Optional, Union
 
+import os
+import pathlib
+
 import chex
 import optax
 import jax
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
 from omegaconf import DictConfig
+import wandb
 
-from fabjax.train.generic_training_loop import TrainConfig, ListLogger, Logger
+from fabjax.train.generic_training_loop import TrainConfig
 from fabjax.train.evaluate import setup_fab_eval_function
 from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
     TrainStateNoBuffer, build_fab_with_buffer_init_step_fns, TrainStateWithBuffer
@@ -17,8 +21,23 @@ from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloS
     build_metropolis
 
 from fabjax.utils.optimize import get_optimizer, OptimizerConfig
-
+from fabjax.utils.loggers import Logger, ListLogger, WandbLogger, PandasLogger
 from fabjax.targets.base import Target
+
+
+def setup_logger(cfg: DictConfig) -> Logger:
+    if hasattr(cfg.logger, "wandb"):
+        logger = WandbLogger(**cfg.logger.wandb, config=dict(cfg))
+    elif hasattr(cfg.logger, "list_logger"):
+        logger = ListLogger()
+    elif hasattr(cfg.logger, 'pandas_logger'):
+        logger = PandasLogger(save_path=cfg.training.save_dir,
+                              save_period=cfg.logger.pandas_logger.save_period,
+                              save=cfg.training.save)
+    else:
+        raise Exception("No logger specified, try adding the wandb or "
+                        "pandas logger to the config file.")
+    return logger
 
 
 class FABTrainConfig(NamedTuple):
@@ -34,12 +53,12 @@ class FABTrainConfig(NamedTuple):
     log_p_fn: LogProbFn
     optimizer: optax.GradientTransformation
     use_buffer: bool
+    logger: Logger
     buffer: Optional[PrioritisedBuffer] = None
     n_updates_per_smc_forward_pass: Optional[int] = None
     use_reverse_kl_loss: bool = False
     w_adjust_clip: float = 10.
     n_checkpoints: int = 0
-    logger: Logger = ListLogger()
     seed: int = 0
     save: bool = False
     use_64_bit: bool = False
@@ -97,6 +116,20 @@ def setup_plotter(flow, smc, target: Target, plot_batch_size,
 
 
 def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
+
+    if "logger" in cfg.keys():
+        logger = setup_logger(cfg)
+
+        if isinstance(logger, WandbLogger) and cfg.training.save_in_wandb_dir:
+            save_path = os.path.join(wandb.run.dir, cfg.training.save_dir)
+        else:
+            save_path = cfg.training.save_dir
+
+        pathlib.Path(save_path).mkdir(exist_ok=True, parents=True)
+    else:
+        logger = ListLogger()
+
+
     dim = target.dim
 
     # Train
@@ -203,7 +236,8 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
                             n_eval=n_eval, plotter=plotter, buffer=buffer, use_buffer=with_buffer,
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
                             use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip,
-                            eval_fn=eval_fn, use_reverse_kl_loss=use_kl_loss)
+                            eval_fn=eval_fn, use_reverse_kl_loss=use_kl_loss,
+                            logger=logger)
 
     return config
 

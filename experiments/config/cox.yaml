@@ -1,7 +1,12 @@
+defaults:
+  - hydra: default
+  - _self_
+
 flow:
   n_layers: 8
   conditioner_mlp_units: [80, 80]
   act_norm: False
+
 
 fab:
   alpha: 2.  # alpha-divergence param
@@ -11,7 +16,7 @@ fab:
     use_resampling: false
     n_intermediate_distributions: 2
     spacing_type: linear
-    transition_operator: metropolis # [hmc or metropolis]
+    transition_operator: hmc # [hmc or metropolis]
     hmc:
       n_outer_steps: 1
       n_inner_steps: 5
