@@ -165,10 +165,12 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
                                  act_norm=act_norm)
     flow = build_flow(flow_config)
 
-    optimizer_config = OptimizerConfig(
-        init_lr=cfg.training.optimizer.lr,
-        dynamic_grad_ignore_and_clip=cfg.training.optimizer.dynamic_grad_ignore_and_clip  # Ignore massive gradients.
-    )
+    opt_cfg = dict(cfg.training.optimizer)
+    n_iter_warmup = opt_cfg.pop('warmup_n_epoch') * cfg.fab.buffer.n_updates_per_smc_forward_pass
+    n_iter_total = cfg.training.n_epoch * cfg.fab.buffer.n_updates_per_smc_forward_pass
+    optimizer_config = OptimizerConfig(**opt_cfg,
+                                       n_iter_total=n_iter_total,
+                                       n_iter_warmup=n_iter_warmup)
 
     log_prob_target = target.log_prob
 

@@ -33,6 +33,11 @@ fab:
     buffer_min_length_in_batches: 40
     n_updates_per_smc_forward_pass: 4
 
+training:
+  optimizer:
+    use_schedule: false
+    init_lr: 1e-4
+
 
 #logger:
 ##  list_logger: null

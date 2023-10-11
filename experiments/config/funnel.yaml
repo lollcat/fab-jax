@@ -37,7 +37,8 @@ fab:
 
 training:
   optimizer:
-      lr: 1e-3
+      use_schedule: false
+      init_lr: 1e-3
       dynamic_grad_ignore_and_clip: true
   n_epoch: 1000
   batch_size: 128
