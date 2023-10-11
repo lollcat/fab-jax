@@ -50,12 +50,12 @@ training:
   n_eval: 20
 
 
-#logger:
-##  list_logger: null
-##  pandas_logger:
-##    save_period: 1000 # how often to save the pandas dataframe as a csv
-#  wandb:
-#    name: cox
-#    project: fab
-#    entity: flow-ais-bootstrap
-#    tags: [cox,fab,fabjax]
+logger:
+#  list_logger: null
+#  pandas_logger:
+#    save_period: 1000 # how often to save the pandas dataframe as a csv
+  wandb:
+    name: cox
+    project: fab
+    entity: flow-ais-bootstrap
+    tags: [cox,fab,fabjax]
