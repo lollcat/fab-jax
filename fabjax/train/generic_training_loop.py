@@ -13,7 +13,7 @@ import optax
 
 from fabjax.utils.jax_util import get_leading_axis_tree
 from fabjax.utils.plot import plot_history
-from fabjax.utils.logging import Logger, ListLogger
+from fabjax.utils.loggers import Logger, ListLogger
 from fabjax.utils.checkpoints import get_latest_checkpoint
 
 class TrainingState(NamedTuple):
