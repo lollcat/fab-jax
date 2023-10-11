@@ -83,7 +83,7 @@ class LogGaussianCoxPines(Target):
     else:
       self._posterior_log_density = self.unwhitened_posterior_log_density
 
-    super().__init__(dim=num_dim, log_Z=self.gt_logz(), can_sample=False, n_plots=0,
+    super().__init__(dim=self._num_latents, log_Z=self.gt_logz(), can_sample=False, n_plots=0,
                    n_model_samples_eval=1000, n_target_samples_eval=2000)
 
   def get_pines_points(self, file_path):
