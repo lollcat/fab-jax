@@ -15,7 +15,8 @@ def setup_fab_eval_function(
       ais: SequentialMonteCarloSampler,
       log_p_x: Callable[[chex.Array], chex.Array],
       batch_size: int,
-      inner_batch_size: int
+      inner_batch_size: int,
+      log_Z_true: Optional[float] =  None
 ) -> Callable[[chex.ArrayTree, chex.PRNGKey], dict]:
     """Evaluate the ESS of the flow, and AIS. """
     assert ais.alpha == 1.  # Make sure target is set to p.
@@ -41,14 +42,20 @@ def setup_fab_eval_function(
         n_samples = n_batches * inner_batch_size
         assert n_samples == log_w_ais.flatten().shape[0]
 
+        log_z_flow = jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples)
+        log_z_ais = jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
+
         # Compute metrics
         info = {}
         info.update(
             eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow.flatten())),
             eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())),
-            log_z_flow=jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples),
-            log_z_ais=jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
                     )
+        if log_Z_true is not None:
+            info.update(abs_err_log_z_flow=jnp.abs(log_z_flow - log_Z_true),
+                        abs_err_log_z_ais=jnp.abs(log_z_ais - log_Z_true))
+        else:
+            info.update(log_z_flow=log_z_flow, log_z_ais=log_z_ais)
         return info
 
     return eval_fn
