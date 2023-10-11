@@ -1,5 +1,6 @@
 import hydra
 from omegaconf import DictConfig
+import jax
 
 from fabjax.train.generic_training_loop import train
 
@@ -8,6 +9,9 @@ from fabjax.targets.gmm_v0 import GMM
 
 @hydra.main(config_path="./config", config_name="gmm_v0.yaml")
 def run(cfg: DictConfig):
+    if cfg.training.use_64_bit:
+        jax.config.update("jax_enable_x64", True)
+
     target = GMM()
 
     fab_config = setup_fab_config(cfg, target)
