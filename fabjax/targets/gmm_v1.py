@@ -18,7 +18,7 @@ class GaussianMixture2D(Target):
     def __init__(self, scale=0.5477222):
         dim = 2
         super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
-                         n_model_samples_eval=1000, n_target_samples_eval=1000)
+                         n_model_samples_eval=1000, n_target_samples_eval=2000)
         mean_ls = [
             [-5., -5.], [-5., 0.], [-5., 5.],
             [0., -5.], [0., 0.], [0., 5.],
