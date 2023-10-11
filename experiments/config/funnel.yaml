@@ -1,6 +1,3 @@
-target:
-  dim: 6 # 32
-
 flow:
   n_layers: 8
   conditioner_mlp_units: [80, 80]
