@@ -4,6 +4,7 @@ import chex
 import distrax
 import jax.nn
 import jax.numpy as jnp
+import tensorflow_probability.substrates.jax as tfp
 
 from fabjax.flow.distrax_with_extra import SplitCouplingWithExtra, ChainWithExtra, BijectorWithExtra
 from fabjax.utils.nets import ConditionerMLP
@@ -29,7 +30,7 @@ def build_split_coupling_bijector(
         identity_init: bool,
         mlp_units: Sequence[int],
         transform_type: str = 'real_nvp',
-        use_tanh_scale_rnvp: bool = True,
+        restrict_scale_rnvp: bool = True,  # Trades stability for expressivity.
 ) -> BijectorWithExtra:
 
     if transform_type != 'real_nvp':
@@ -49,10 +50,10 @@ def build_split_coupling_bijector(
 
         def bijector_fn(params: chex.Array) -> distrax.Bijector:
             scale_logit, shift = jnp.split(params, 2, axis=-1)
-            if use_tanh_scale_rnvp:
-                min_scale = 0.01
-                max_scale = 5.
-                scale = 1 + min_scale + jnp.tanh(scale_logit)*2/(max_scale - min_scale)
+            if restrict_scale_rnvp:
+                scale_logit_bijector = tfp.bijectors.Sigmoid(low=0.1, high=10.)
+                scale_logit_init = scale_logit_bijector.inverse(1.)
+                scale = scale_logit_bijector(scale_logit + scale_logit_init)
             else:
                 scale = jax.nn.softplus(scale_logit + inverse_softplus(1.))
             return distrax.ScalarAffine(shift=shift, scale=scale)

@@ -178,9 +178,12 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
     ais_eval = build_smc(transition_operator=transition_operator,
                     n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
                     alpha=1., use_resampling=False)
-    _eval_fn = setup_fab_eval_function(flow=flow, ais=ais_eval, log_p_x=log_prob_target,
-                                      batch_size=eval_batch_size,
-                                      inner_batch_size=batch_size)
+    _eval_fn = setup_fab_eval_function(
+          flow=flow, ais=ais_eval, log_p_x=log_prob_target,
+          batch_size=eval_batch_size,
+          inner_batch_size=batch_size,
+          log_Z_true=target.log_Z
+         )
 
     @jax.jit
     def eval_fn(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey) -> dict:

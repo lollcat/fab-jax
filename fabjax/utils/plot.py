@@ -10,7 +10,8 @@ import pandas as pd
 
 def plot_contours_2D(log_prob_func,
                      ax: Optional[plt.Axes] = None,
-                     bound=3, levels=20):
+                     bound: float = 3,
+                     levels: int = 20):
     """Plot the contours of a 2D log prob function."""
     if ax is None:
         fig, ax = plt.subplots(1)
