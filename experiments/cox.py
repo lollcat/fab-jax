@@ -13,7 +13,7 @@ def run(cfg: DictConfig) -> None:
     if cfg.training.use_64_bit:
         jax.config.update("jax_enable_x64", True)
 
-    target = CoxDist()
+    target = CoxDist(num_grid_per_dim=cfg.target.num_grid_per_dim)
     print(f"Target dim is {target.dim}.")
 
     fab_config = setup_fab_config(cfg, target)

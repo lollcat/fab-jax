@@ -36,13 +36,14 @@ class LogGaussianCoxPines(Target):
   """
 
   def __init__(self,
-               num_dim: int = 32*32,
+               num_grid_per_dim: int = 32,
                use_whitened: bool = False):
+    assert num_grid_per_dim in (32, 40)
 
     # Discretization is as in Controlled Sequential Monte Carlo
     # by Heng et al 2017 https://arxiv.org/abs/1708.08396
-    self._num_latents = num_dim
-    self._num_grid_per_dim = int(np.sqrt(num_dim))
+    self._num_latents = num_grid_per_dim**2
+    self._num_grid_per_dim = num_grid_per_dim
 
     file_path = osp.join(pathlib.Path(__file__).parent.resolve(), "df_pines.csv")
     pines_array = self.get_pines_points(file_path)[1:, 1:]

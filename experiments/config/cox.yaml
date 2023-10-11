@@ -3,8 +3,11 @@ defaults:
   - hydra: default
   - _self_
 
+target:
+  num_grid_per_dim: 40  # [32 or 40]
+
 flow:
-  n_layers: 8
+  n_layers: 4
   conditioner_mlp_units: [64, 64]
   act_norm: False
 
@@ -15,11 +18,11 @@ fab:
   w_adjust_clip: 10.
   smc:
     use_resampling: false
-    n_intermediate_distributions: 8
+    n_intermediate_distributions: 10
     spacing_type: linear
     transition_operator: hmc # [hmc or metropolis]
     hmc:
-      n_outer_steps: 2
+      n_outer_steps: 1
       n_inner_steps: 5
       init_step_size: 1e-2
       target_p_accept: 0.65
@@ -38,7 +41,7 @@ fab:
 
 training:
   optimizer:
-      lr: 1e-4
+      lr: 2e-4
       dynamic_grad_ignore_and_clip: true
   n_epoch: 2e3
   batch_size: 512
@@ -55,7 +58,7 @@ logger:
 #  pandas_logger:
 #    save_period: 1000 # how often to save the pandas dataframe as a csv
   wandb:
-    name: cox
+    name: cox_${target.num_grid_per_dim}
     project: fab
     entity: flow-ais-bootstrap
     tags: [cox,fab,fabjax]
