@@ -15,7 +15,7 @@ fab:
   w_adjust_clip: 10.
   smc:
     use_resampling: false
-    n_intermediate_distributions: 2
+    n_intermediate_distributions: 8
     spacing_type: linear
     transition_operator: hmc # [hmc or metropolis]
     hmc:

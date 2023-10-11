@@ -103,7 +103,7 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
 def replace_invalid_samples_with_valid_ones(point: Point, key: chex.PRNGKey) -> Point:
     """Replace invalid (non-finite) samples in the point with valid ones (where valid ones are sampled uniformly)."""
     valid_samples = jnp.isfinite(point.log_q) & jnp.isfinite(point.log_p) & \
-                    jnp.alltrue(jnp.isfinite(point.x), axis=-1)
+                    jnp.all(jnp.isfinite(point.x), axis=-1)
     p = jnp.where(valid_samples, jnp.ones_like(valid_samples), jnp.zeros_like(valid_samples))
     indices = jax.random.choice(key, jnp.arange(valid_samples.shape[0]), p=p, shape=valid_samples.shape)
     alt_points = jax.tree_map(lambda x: x[indices], point)
