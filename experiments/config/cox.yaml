@@ -8,7 +8,7 @@ target:
 
 flow:
   n_layers: 8
-  conditioner_mlp_units: [64, 64]
+  conditioner_mlp_units: [128, 128]
   act_norm: False
 
 
@@ -55,7 +55,7 @@ logger:
 #  pandas_logger:
 #    save_period: 1000 # how often to save the pandas dataframe as a csv
   wandb:
-    name: cox_${target.num_grid_per_dim}_lr_sched
+    name: cox_${target.num_grid_per_dim}_lr_sched_fatter
     project: fab
     entity: flow-ais-bootstrap
     tags: [cox,fab,fabjax]
