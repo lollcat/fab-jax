@@ -5,7 +5,7 @@ defaults:
 
 flow:
   n_layers: 8
-  conditioner_mlp_units: [80, 80]
+  conditioner_mlp_units: [128, 128, 128]
   act_norm: False
 
 
@@ -38,9 +38,9 @@ fab:
 
 training:
   optimizer:
-      lr: 1e-3
+      lr: 1e-4
       dynamic_grad_ignore_and_clip: true
-  n_epoch: 1000
+  n_epoch: 2e3
   batch_size: 128
   eval_batch_size: 2_000
   plot_batch_size: 1_000
