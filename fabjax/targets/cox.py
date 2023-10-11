@@ -110,8 +110,11 @@ class LogGaussianCoxPines(Target):
     return prior_log_density + log_likelihood
 
   def log_prob(self, x: Array) -> Array:
-    chex.assert_rank(x, 1)
-    return self._posterior_log_density(x)
+    if x.ndim == 1:
+        return self._posterior_log_density(x)
+    else:
+        assert x.ndim == 2
+        return jax.vmap(self._posterior_log_density)(x)
 
   def gt_logz(self):
     if self._num_grid_per_dim == 40:
