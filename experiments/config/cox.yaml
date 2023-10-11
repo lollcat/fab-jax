@@ -5,7 +5,7 @@ defaults:
 
 flow:
   n_layers: 8
-  conditioner_mlp_units: [128, 128, 128]
+  conditioner_mlp_units: [64, 64]
   act_norm: False
 
 
@@ -19,7 +19,7 @@ fab:
     spacing_type: linear
     transition_operator: hmc # [hmc or metropolis]
     hmc:
-      n_outer_steps: 1
+      n_outer_steps: 2
       n_inner_steps: 5
       init_step_size: 1e-2
       target_p_accept: 0.65
@@ -31,7 +31,7 @@ fab:
       tune_step_size: false
   buffer:
     with_buffer: True
-    buffer_max_length_in_batches: 400
+    buffer_max_length_in_batches: 1000
     buffer_min_length_in_batches: 40
     n_updates_per_smc_forward_pass: 4
 
@@ -41,21 +41,21 @@ training:
       lr: 1e-4
       dynamic_grad_ignore_and_clip: true
   n_epoch: 2e3
-  batch_size: 128
+  batch_size: 512
   eval_batch_size: 2_000
   plot_batch_size: 1_000
-  use_64_bit: true
+  use_64_bit: false
   seed: 0
   n_checkpoints: 0
   n_eval: 20
 
 
-logger:
-#  list_logger: null
-#  pandas_logger:
-#    save_period: 1000 # how often to save the pandas dataframe as a csv
-  wandb:
-    name: cox
-    project: fab
-    entity: flow-ais-bootstrap
-    tags: [cox,fab,fabjax]
+#logger:
+##  list_logger: null
+##  pandas_logger:
+##    save_period: 1000 # how often to save the pandas dataframe as a csv
+#  wandb:
+#    name: cox
+#    project: fab
+#    entity: flow-ais-bootstrap
+#    tags: [cox,fab,fabjax]
