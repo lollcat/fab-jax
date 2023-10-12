@@ -10,6 +10,7 @@ target:
 flow:
   n_layers: 8
   transform_type: real_nvp # spline or real_nvp
+  act_norm: false
   conditioner_mlp_units: [512, 512]
 
 
