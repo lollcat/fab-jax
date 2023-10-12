@@ -1,5 +1,5 @@
 n_layers: 8
-conditioner_mlp_units: [80, 80]
+conditioner_mlp_units: [64, 64]
 act_norm: true
 identity_init: true
 transform_type: spline # spline or realnvp
