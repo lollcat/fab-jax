@@ -9,8 +9,8 @@ target:
 
 flow:
   n_layers: 6
-  transform_type: spline # spline or realnvp
-  conditioner_mlp_units: [128, 128]  # rnvp was working well with [256, 256]
+  transform_type: spline # spline or real_nvp
+  conditioner_mlp_units: [128, 128]  # real_nvp was working well with [256, 256]
   spline_num_bins: 4
 
 
