@@ -13,7 +13,7 @@ pip install -e .
 ```
 
 ## Key tips
- - Please reach out to us if you would like us help apply FAB to a problem of interest!
+ - Please reach out to us if you would like us to help apply FAB to a problem of interest!
  - For FAB to work well we need SMC to preform reasonably well, where by reasonble we just mean that it produces samples that are
 better than samples from the flow by a noticeable margin.
 If applying FAB to a new problem, make sure that transition operator has a well tuned step size.
