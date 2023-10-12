@@ -16,10 +16,12 @@ class ConditionerMLP(nn.Module):
     def __call__(self, params):
         out = params
         for unit in self.mlp_units:
-            out = nn.Dense(unit)(out)
+            out = nn.Dense(unit, param_dtype=params.dtype)(out)
             out = self.activation(out)
 
         out = nn.Dense(self.n_output_params,
                        kernel_init=nn.initializers.zeros_init() if self.zero_init else
-                       nn.initializers.variance_scaling(scale=0.01, mode="fan_in", distribution="truncated_normal"))(out)
+                       nn.initializers.variance_scaling(scale=0.01, mode="fan_in", distribution="truncated_normal"),
+                       param_dtype=params.dtype
+                       )(out)
         return out
