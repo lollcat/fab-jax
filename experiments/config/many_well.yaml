@@ -1,12 +1,11 @@
 defaults:
+  - flow: default
   - training: default
   - hydra: default
   - _self_
 
-flow:
-  n_layers: 8
-  conditioner_mlp_units: [80, 80]
-  act_norm: False
+target:
+  dim: 6
 
 fab:
   alpha: 2.  # alpha-divergence param
@@ -38,23 +37,11 @@ fab:
 training:
   optimizer:
     use_schedule: false
-    init_lr: 1e-3
+    init_lr: 3e-4
   n_epoch: 1000
   batch_size: 128
   eval_batch_size: 2_000
   plot_batch_size: 1_000
-  use_64_bit: true
   seed: 0
   n_checkpoints: 0
   n_eval: 20
-
-
-#logger:
-##  list_logger: null
-##  pandas_logger:
-##    save_period: 1000 # how often to save the pandas dataframe as a csv
-#  wandb:
-#    name: dw4_${flow.type}_${training.train_set_size}
-#    project: fab
-#    entity: flow-ais-bootstrap
-#    tags: [dw4,ml,protea]

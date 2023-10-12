@@ -1,4 +1,5 @@
 defaults:
+  - flow: default
   - training: default
   - hydra: default
   - _self_
@@ -8,8 +9,9 @@ target:
 
 flow:
   n_layers: 8
+  transform_type: real_nvp # spline or real_nvp
+  act_norm: false
   conditioner_mlp_units: [256, 256]
-  act_norm: False
 
 
 fab:
@@ -44,7 +46,6 @@ training:
   batch_size: 1024
   eval_batch_size: 2_000
   plot_batch_size: 1_000
-  use_64_bit: false
   seed: 0
   n_checkpoints: 0
   n_eval: 20
@@ -55,7 +56,7 @@ logger:
 #  pandas_logger:
 #    save_period: 1000 # how often to save the pandas dataframe as a csv
   wandb:
-    name: cox_${target.num_grid_per_dim}_lr_sched_EvenFatter_DecayLRTo0
+    name: cox_${target.num_grid_per_dim}_512_512_512
     project: fab
     entity: flow-ais-bootstrap
     tags: [cox,fab,fabjax]

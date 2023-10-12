@@ -1,11 +1,13 @@
 defaults:
+  - flow: default
+  - training: default
   - hydra: default
   - _self_
 
 flow:
-  n_layers: 8
-  conditioner_mlp_units: [80, 80]
-  act_norm: False
+  transform_type: spline
+  spline_max: 40.
+  spline_min: -40.
 
 fab:
   alpha: 2.  # alpha-divergence param
@@ -36,15 +38,4 @@ fab:
 training:
   optimizer:
     use_schedule: false
-    init_lr: 1e-4
-
-
-#logger:
-##  list_logger: null
-##  pandas_logger:
-##    save_period: 1000 # how often to save the pandas dataframe as a csv
-#  wandb:
-#    name: dw4_${flow.type}_${training.train_set_size}
-#    project: fab
-#    entity: flow-ais-bootstrap
-#    tags: [dw4,ml,protea]
+    init_lr: 3e-4

@@ -1,7 +1,7 @@
 chex
 blackjax-nightly==0.9.6.post153
 distrax
-dm-haiku
+flax
 optax
 pytest
 tqdm

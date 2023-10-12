@@ -1,12 +1,15 @@
 defaults:
+  - flow: default
   - training: default
   - hydra: default
   - _self_
 
 flow:
   n_layers: 8
-  conditioner_mlp_units: [80, 80]
-  act_norm: False
+  transform_type: real_nvp # spline or real_nvp
+  conditioner_mlp_units: [128, 128]
+  act_norm: false
+
 
 fab:
   alpha: 2.  # alpha-divergence param
@@ -38,17 +41,12 @@ fab:
 training:
   optimizer:
       use_schedule: false
-      init_lr: 1e-3
+      init_lr: 3e-4
       dynamic_grad_ignore_and_clip: true
-  n_epoch: 1000
-  batch_size: 128
+  n_epoch: 2000
+  batch_size: 256
   eval_batch_size: 2_000
   plot_batch_size: 1_000
-  use_64_bit: true
-  seed: 0
-  n_checkpoints: 0
-  n_eval: 20
-
 
 logger:
 #  list_logger: null
@@ -58,4 +56,4 @@ logger:
     name: funnel
     project: fab
     entity: flow-ais-bootstrap
-    tags: [funnel,fab,fabjax]
+    tags: [cox,fab,fabjax]

@@ -1,14 +1,14 @@
-from typing import NamedTuple, Callable, Tuple, Union, Any, Optional
+from typing import NamedTuple, Callable, Tuple, Any
 
 import chex
 import distrax
-import haiku as hk
+import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
 from fabjax.flow.distrax_with_extra import Extra, BijectorWithExtra
 
-Params = hk.Params
+Params = chex.ArrayTree
 LogProb = chex.Array
 LogDet = chex.Array
 Sample = chex.Array
@@ -40,68 +40,82 @@ class Flow(NamedTuple):
     dim: int
 
 
+class FlowForwardAndLogDet(nn.Module):
+    bijector: BijectorWithExtra
 
-def create_flow(recipe: FlowRecipe) -> Flow:
-    """Create a `Flow` given the provided definition. Allows for extra info to be passed forward in the flow, and
-    is faster to compile than the distrax chain."""
+    @nn.compact
+    def __call__(self, x: chex.Array) -> Tuple[chex.Array, LogDet]:
+        return self.bijector.forward_and_log_det(x)
+
+class FlowInverseAndLogDet(nn.Module):
+    bijector: BijectorWithExtra
+
+    @nn.compact
+    def __call__(self, y: chex.Array) -> Tuple[chex.Array, LogDet]:
+        return self.bijector.inverse_and_log_det(y)
 
 
-    @hk.without_apply_rng
-    @hk.transform
-    def base_sample_fn(seed: chex.PRNGKey, sample_shape: chex.Shape) -> Sample:
-        sample = recipe.make_base().sample(seed=seed, sample_shape=sample_shape)
-        return sample
+class FlowForwardAndLogDetWithExtra(nn.Module):
+    bijector: BijectorWithExtra
 
-    @hk.without_apply_rng
-    @hk.transform
-    def base_log_prob_fn(sample: Sample) -> LogProb:
-        return recipe.make_base().log_prob(value=sample)
-
-    @hk.without_apply_rng
-    @hk.transform
-    def bijector_forward_and_log_det(x: Sample) -> Tuple[Sample, LogDet]:
-        y, logdet = recipe.make_bijector().forward_and_log_det(x)
-        return y, logdet
-
-    @hk.without_apply_rng
-    @hk.transform
-    def bijector_inverse_and_log_det(y: Sample) -> Tuple[Sample, LogDet]:
-        x, logdet = recipe.make_bijector().inverse_and_log_det(y)
-        return x, logdet
-
-    @hk.without_apply_rng
-    @hk.transform
-    def bijector_forward_and_log_det_with_extra(x: Sample) -> \
-            Tuple[Sample, LogDet, Extra]:
-        bijector = recipe.make_bijector()
-        if isinstance(bijector, BijectorWithExtra):
-            y, log_det, extra = bijector.forward_and_log_det_with_extra(x)
+    @nn.compact
+    def __call__(self, x: chex.Array) -> Tuple[chex.Array, LogDet, Extra]:
+        if isinstance(self.bijector, BijectorWithExtra):
+            y, log_det, extra = self.bijector.forward_and_log_det_with_extra(x)
         else:
-            y, log_det = bijector.forward_and_log_det(x)
+            y, log_det = self.bijector.forward_and_log_det(x)
             extra = Extra()
         extra.aux_info.update(mean_log_det=jnp.mean(log_det))
         extra.info_aggregator.update(mean_log_det=jnp.mean)
         return y, log_det, extra
 
-    @hk.without_apply_rng
-    @hk.transform
-    def bijector_inverse_and_log_det_with_extra(y: Sample) -> \
-            Tuple[Sample, LogDet, Extra]:
-        bijector = recipe.make_bijector()
-        if isinstance(bijector, BijectorWithExtra):
-            x, log_det, extra = bijector.inverse_and_log_det_with_extra(y)
+class FlowInverseAndLogDetWithExtra(nn.Module):
+    bijector: BijectorWithExtra
+
+    @nn.compact
+    def __call__(self, y: chex.Array) -> Tuple[chex.Array, LogDet, Extra]:
+        if isinstance(self.bijector, BijectorWithExtra):
+            x, log_det, extra = self.bijector.inverse_and_log_det_with_extra(y)
         else:
-            x, log_det = bijector.inverse_and_log_det(y)
+            x, log_det = self.bijector.inverse_and_log_det(y)
             extra = Extra()
         extra.aux_info.update(mean_log_det=jnp.mean(log_det))
         extra.info_aggregator.update(mean_log_det=jnp.mean)
         return x, log_det, extra
 
+class BaseSampleFn(nn.Module):
+    base: Any
+
+    @nn.compact
+    def __call__(self, seed: chex.PRNGKey, sample_shape: chex.Shape) -> Sample:
+        sample = self.base.sample(seed=seed, sample_shape=sample_shape)
+        return sample
+
+class BaseLogProbFn(nn.Module):
+    base: Any
+
+    @nn.compact
+    def __call__(self, sample: Sample) -> LogProb:
+        return self.base.log_prob(value=sample)
+
+
+def create_flow(recipe: FlowRecipe) -> Flow:
+    """Create a `Flow` given the provided definition. Allows for extra info to be passed forward in the flow, and
+    is faster to compile than the distrax chain."""
+
+    bijector_block = recipe.make_bijector()
+    base = recipe.make_base()
+    base_sample_fn = BaseSampleFn(base=base)
+    base_log_prob_fn = BaseLogProbFn(base=base)
+    forward_and_log_det_single = FlowForwardAndLogDet(bijector=bijector_block)
+    inverse_and_log_det_single = FlowInverseAndLogDet(bijector=bijector_block)
+    forward_and_log_det_with_extra_single = FlowForwardAndLogDetWithExtra(bijector=bijector_block)
+    inverse_and_log_det_with_extra_single = FlowInverseAndLogDetWithExtra(bijector=bijector_block)
 
     def log_prob_apply(params: FlowParams, sample: Sample) -> LogProb:
         def scan_fn(carry, bijector_params):
             y, log_det_prev = carry
-            x, log_det = bijector_inverse_and_log_det.apply(bijector_params, y)
+            x, log_det = inverse_and_log_det_single.apply(bijector_params, y)
             chex.assert_equal_shape((log_det_prev, log_det))
             return (x, log_det_prev + log_det), None
 
@@ -116,7 +130,7 @@ def create_flow(recipe: FlowRecipe) -> Flow:
     def log_prob_with_extra_apply(params: FlowParams, sample: Sample) -> Tuple[LogProb, Extra]:
         def scan_fn(carry, bijector_params):
             y, log_det_prev = carry
-            x, log_det, extra = bijector_inverse_and_log_det_with_extra.apply(bijector_params, y)
+            x, log_det, extra = inverse_and_log_det_with_extra_single.apply(bijector_params, y)
             chex.assert_equal_shape((log_det_prev, log_det))
             return (x, log_det_prev + log_det), extra
 
@@ -142,7 +156,7 @@ def create_flow(recipe: FlowRecipe) -> Flow:
     def sample_and_log_prob_apply(params: FlowParams, key: chex.PRNGKey, shape: chex.Shape) -> Tuple[Sample, LogProb]:
         def scan_fn(carry, bijector_params):
             x, log_det_prev = carry
-            y, log_det = bijector_forward_and_log_det.apply(bijector_params, x)
+            y, log_det = forward_and_log_det_single.apply(bijector_params, x)
             chex.assert_equal_shape((log_det_prev, log_det))
             return (y, log_det_prev + log_det), None
 
@@ -160,7 +174,7 @@ def create_flow(recipe: FlowRecipe) -> Flow:
                                              shape: chex.Shape) -> Tuple[Sample, LogProb, Extra]:
         def scan_fn(carry, bijector_params):
             x, log_det_prev = carry
-            y, log_det, extra = bijector_forward_and_log_det_with_extra.apply(bijector_params, x)
+            y, log_det, extra = forward_and_log_det_with_extra_single.apply(bijector_params, x)
             chex.assert_equal_shape((log_det_prev, log_det))
             return (y, log_det_prev + log_det), extra
 
@@ -188,7 +202,7 @@ def create_flow(recipe: FlowRecipe) -> Flow:
 
         key1, key2 = jax.random.split(seed)
         params_base = base_log_prob_fn.init(key1, sample)
-        params_bijector_single = bijector_inverse_and_log_det.init(key2, sample)
+        params_bijector_single = inverse_and_log_det_single.init(key2, sample)
         params_bijectors = jax.tree_map(lambda x: jnp.repeat(x[None, ...], recipe.n_layers, axis=0),
                                         params_bijector_single)
         return FlowParams(base=params_base, bijector=params_bijectors)
@@ -197,7 +211,7 @@ def create_flow(recipe: FlowRecipe) -> Flow:
         return sample_and_log_prob_apply(*args, **kwargs)[0]
 
 
-    flow = Flow(
+    bijector_block = Flow(
         dim=recipe.dim,
         init=init,
         log_prob_apply=log_prob_apply,
@@ -207,4 +221,4 @@ def create_flow(recipe: FlowRecipe) -> Flow:
         sample_apply=sample_apply,
         config=recipe.config
                         )
-    return flow
+    return bijector_block
