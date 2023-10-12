@@ -1,74 +1,25 @@
-from typing import Callable, Sequence, Optional
+from typing import Sequence, Callable
 
-import haiku as hk
-import jax.nn
-import jax.numpy as jnp
+import jax
+import flax.linen as nn
 
-class NonLinearLayerWithResidualAndLayerNorm(hk.Module):
-    def __init__(self, output_size: int, activation_fn: Callable = jax.nn.silu):
-        super().__init__()
-        self.output_size = output_size
-        self.linear_layer = hk.Linear(self.output_size)
-        self.layer_norm = hk.LayerNorm(axis=-1, create_offset=True, create_scale=True, param_axis=-1)
-        self.activation_fn = activation_fn
-
-    def __call__(self, x):
-        out = self.activation_fn(self.linear_layer(self.layer_norm(x)))
-        return out + x
-
-
-class StableMLP(hk.Module):
-    """MLP with layer norm and residual connections."""
-    def __init__(self,
-                 mlp_units: Sequence[int],
-                 activate_final: bool = False,
-                 zero_init_output: bool = False,
-                 output_variance_scaling: Optional[float] = False,
-                 stable_layer: bool = True,
-                 activation: Callable = jax.nn.silu,
-                 name: Optional[str] = None,
-                 ):
-        super().__init__(name=name)
-        self.activate_final = activate_final
-        if not activate_final:
-            assert len(mlp_units) > 1, "MLP is single linear layer with no non-linearity"
-            n_output_params = mlp_units[-1]
-            mlp_units = mlp_units[:-1]
-        for i in range(len(mlp_units) - 1):  # Make sure mlp_units have constant width.
-            assert mlp_units[i] == mlp_units[i+1]
-        if stable_layer:
-            layers = [hk.Linear(mlp_units[0]), activation]
-            layers.extend([NonLinearLayerWithResidualAndLayerNorm(layer_width, activation_fn=activation)
-                           for layer_width in mlp_units[1:]])
-            self.mlp_function = hk.Sequential(layers)
-        else:
-            self.mlp_function = hk.nets.MLP(mlp_units, activate_final=True, activation=activation)
-
-        if zero_init_output or output_variance_scaling:
-            assert activate_final is False
-        if not activate_final:
-            self.final_layer = hk.Linear(n_output_params, b_init=jnp.zeros, w_init=jnp.zeros) if zero_init_output else \
-                hk.Linear(n_output_params,
-                          w_init=hk.initializers.VarianceScaling(output_variance_scaling, "fan_avg", "uniform")
-                          if output_variance_scaling else None)
-
-    def __call__(self, params):
-        out = self.mlp_function(params)
-        if not self.activate_final:
-            out = self.final_layer(out)
-        return out
-
-
-class ConditionerMLP(hk.Module):
+class ConditionerMLP(nn.Module):
     """Used for converting the invariant feat from the EGNN, into the parameters of the bijector transformation
     (e.g. scale and shit params for RealNVP)."""
-    def __init__(self, name: str, mlp_units: Sequence[int], n_output_params: int, zero_init: bool,
-                 output_variance_scaling: float = 0.01, stable_layer: bool = True):
-        super().__init__(name=name)
-        self.mlp = StableMLP(mlp_units=(*mlp_units, n_output_params), activate_final=False,
-                             output_variance_scaling=output_variance_scaling, stable_layer=stable_layer,
-                             zero_init_output=zero_init)
+    name: str
+    mlp_units: Sequence[int]
+    n_output_params: int
+    zero_init: bool
+    activation: Callable = jax.nn.gelu
 
+    @nn.compact
     def __call__(self, params):
-        out = self.mlp(params)
+        out = params
+        for unit in self.mlp_units:
+            out = nn.Dense(unit)(out)
+            out = self.activation(out)
+
+        out = nn.Dense(self.n_output_params,
+                       kernel_init=nn.initializers.zeros_init() if self.zero_init else
+                       nn.initializers.variance_scaling(scale=0.01, mode="fan_in", distribution="truncated_normal"))(out)
         return out
