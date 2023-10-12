@@ -8,10 +8,9 @@ target:
   num_grid_per_dim: 40  # [32 or 40]
 
 flow:
-  n_layers: 6
-  transform_type: spline # spline or real_nvp
-  conditioner_mlp_units: [128, 128]  # real_nvp was working well with [256, 256]
-  spline_num_bins: 4
+  n_layers: 8
+  transform_type: real_nvp # spline or real_nvp
+  conditioner_mlp_units: [512, 512]
 
 
 fab:
