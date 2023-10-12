@@ -1,11 +1,8 @@
 defaults:
+  - flow: default
   - training: default
   - hydra: default
   - _self_
-flow:
-  n_layers: 8
-  conditioner_mlp_units: [80, 80]
-  act_norm: False
 
 fab:
   alpha: 2.  # alpha-divergence param

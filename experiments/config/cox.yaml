@@ -1,4 +1,5 @@
 defaults:
+  - flow: default
   - training: default
   - hydra: default
   - _self_
@@ -9,7 +10,6 @@ target:
 flow:
   n_layers: 8
   conditioner_mlp_units: [256, 256]
-  act_norm: False
 
 
 fab:

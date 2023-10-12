@@ -1,6 +1,5 @@
 from typing import NamedTuple, Sequence, Union
 
-import chex
 import distrax
 import jax.numpy as jnp
 
@@ -13,6 +12,11 @@ class FlowDistConfig(NamedTuple):
     dim: int
     n_layers: int
     conditioner_mlp_units: Sequence[int]
+    transform_type: str = 'spline',
+    restrict_scale_rnvp: bool = True,  # Trades stability for expressivity.
+    spline_max: float = 10.,
+    spline_min: float = -10.,
+    spline_num_bins: int = 8,
     type: Union[str, Sequence[str]] = 'split_coupling'
     act_norm: bool = True
     identity_init: bool = True
@@ -43,7 +47,12 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
             bijector = build_split_coupling_bijector(
                 dim=config.dim,
                 identity_init=config.identity_init,
-                mlp_units=config.conditioner_mlp_units
+                conditioner_mlp_units=config.conditioner_mlp_units,
+                transform_type=config.transform_type,
+                restrict_scale_rnvp=config.restrict_scale_rnvp,
+                spline_max=config.spline_max,
+                spline_min=config.spline_min,
+                spline_num_bins=config.spline_num_bins,
             )
             bijectors.append(bijector)
 

@@ -161,8 +161,7 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
 
 
     # Setup flow and target.
-    flow_config = FlowDistConfig(dim=dim, n_layers=n_layers, conditioner_mlp_units=conditioner_mlp_units,
-                                 act_norm=act_norm)
+    flow_config = FlowDistConfig(dim=dim, **cfg.flow)
     flow = build_flow(flow_config)
 
     opt_cfg = dict(cfg.training.optimizer)

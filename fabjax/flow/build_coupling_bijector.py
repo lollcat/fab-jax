@@ -28,14 +28,15 @@ def make_conditioner(name, n_output_params, mlp_units, identity_init):
 def build_split_coupling_bijector(
         dim: int,
         identity_init: bool,
-        mlp_units: Sequence[int],
-        transform_type: str = 'real_nvp',
+        conditioner_mlp_units: Sequence[int],
+        transform_type: str = 'spline',
         restrict_scale_rnvp: bool = True,  # Trades stability for expressivity.
+        spline_max: float = 10.,
+        spline_min: float = -10.,
+        spline_num_bins: int = 8,
 ) -> BijectorWithExtra:
 
-    if transform_type != 'real_nvp':
-        raise NotImplementedError
-        # TODO: implement spline transform
+    assert transform_type in ['real_nvp', 'spline']
 
     split_index = dim // 2
 
@@ -43,20 +44,39 @@ def build_split_coupling_bijector(
     for swap in (True, False):
         params_after_split = dim - split_index
         params_transformed = params_after_split if swap else split_index
-        conditioner_n_params_out = params_transformed*2
+        if transform_type == "real_nvp":
+            conditioner_n_params_out = params_transformed*2
+        elif transform_type == "spline":
+            conditioner_n_params_out = params_transformed * (3*spline_num_bins + 1)
+        else:
+            raise NotImplementedError
+
 
         conditioner = make_conditioner(f'splitcoupling_conditioner_swap{swap}', conditioner_n_params_out,
-                                       mlp_units, identity_init)
+                                       conditioner_mlp_units, identity_init)
 
         def bijector_fn(params: chex.Array) -> distrax.Bijector:
-            scale_logit, shift = jnp.split(params, 2, axis=-1)
-            if restrict_scale_rnvp:
-                scale_logit_bijector = tfp.bijectors.Sigmoid(low=0.1, high=10.)
-                scale_logit_init = scale_logit_bijector.inverse(1.)
-                scale = scale_logit_bijector(scale_logit + scale_logit_init)
+            if transform_type == "real_nvp":
+                scale_logit, shift = jnp.split(params, 2, axis=-1)
+                if restrict_scale_rnvp:
+                    scale_logit_bijector = tfp.bijectors.Sigmoid(low=0.1, high=10.)
+                    scale_logit_init = scale_logit_bijector.inverse(1.)
+                    scale = scale_logit_bijector(scale_logit + scale_logit_init)
+                else:
+                    scale = jax.nn.softplus(scale_logit + inverse_softplus(1.))
+                return distrax.ScalarAffine(shift=shift, scale=scale)
+            elif transform_type == "spline":
+                params = jnp.reshape(params, (*params.shape[:-1], params_transformed, 3*spline_num_bins+1))
+                bijector = distrax.RationalQuadraticSpline(
+                    params=params,
+                    range_min=spline_min,
+                    range_max=spline_max,
+                    min_bin_size=1e-4 * (spline_max - spline_min),
+                    boundary_slopes='unconstrained'
+                )
+                return bijector
             else:
-                scale = jax.nn.softplus(scale_logit + inverse_softplus(1.))
-            return distrax.ScalarAffine(shift=shift, scale=scale)
+                raise NotImplementedError
 
 
         bijector = SplitCouplingWithExtra(
