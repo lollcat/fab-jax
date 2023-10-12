@@ -11,7 +11,7 @@ flow:
   n_layers: 8
   transform_type: real_nvp # spline or real_nvp
   act_norm: false
-  conditioner_mlp_units: [512, 512]
+  conditioner_mlp_units: [512, 512, 512]
 
 
 fab:
@@ -56,7 +56,7 @@ logger:
 #  pandas_logger:
 #    save_period: 1000 # how often to save the pandas dataframe as a csv
   wandb:
-    name: cox_${target.num_grid_per_dim}_lr_sched_EvenFatter_DecayLRTo0
+    name: cox_${target.num_grid_per_dim}_512_512_512
     project: fab
     entity: flow-ais-bootstrap
     tags: [cox,fab,fabjax]
