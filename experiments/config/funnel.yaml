@@ -40,3 +40,13 @@ training:
   batch_size: 128
   eval_batch_size: 2_000
   plot_batch_size: 1_000
+
+logger:
+#  list_logger: null
+#  pandas_logger:
+#    save_period: 1000 # how often to save the pandas dataframe as a csv
+  wandb:
+    name: funnel
+    project: fab
+    entity: flow-ais-bootstrap
+    tags: [cox,fab,fabjax]
