@@ -28,7 +28,6 @@ training:
   batch_size: 1024
 
 
-
 logger:
 #  list_logger: null
 #  pandas_logger:
