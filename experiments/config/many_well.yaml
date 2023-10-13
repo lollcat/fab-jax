@@ -14,6 +14,7 @@ fab:
     transition_operator: hmc # [hmc or metropolis]
 
 training:
+  eval_batch_size: 2_000
   n_epoch: 1e4
   batch_size: 1024
 

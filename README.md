@@ -3,10 +3,6 @@
 
 See `experiments` for training runs on various common problems using FAB.
 
-This library is currently being built - I will be steadily adding more features, results and improving the documentation.
-
-
-
 ## Install
 ```shell
 pip install -e .
@@ -14,9 +10,11 @@ pip install -e .
 
 ## Key tips
  - Please reach out to us if you would like us to help apply FAB to a problem of interest!
+ - To pick hyperparameters begin with the defaults inside `experiments/configs` - these should give a solid starting point.
+The most important hyper-parameters to tune are the number of iterations, the batch size, the number of intermediate distributions, the flow architecture, the MCMC transition operator, the learning rate schedule. 
  - For FAB to work well we need SMC to preform reasonably well, where by reasonble we just mean that it produces samples that are
 better than samples from the flow by a noticeable margin.
-If applying FAB to a new problem, make sure that transition operator has a well tuned step size.
+If applying FAB to a new problem, make sure that transition operator works well (e.g. has a well tuned step size).
 Having good plotting tools for visualising samples from the flow and SMC can be very helpful for diagnosing performance.
  - For getting started with a new problem we recommend starting with a small toy version of the problem, getting that to work
 well, and then to move onto more challenging versions of the problem.

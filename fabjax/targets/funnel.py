@@ -16,7 +16,7 @@ class FunnelSet(Target):
     """
     def __init__(self, dim: int = 10) -> None:
         super().__init__(dim=dim, log_Z=0., can_sample=True, n_plots=0,
-                         n_model_samples_eval=1000, n_target_samples_eval=1000)
+                         n_model_samples_eval=1000, n_target_samples_eval=2000)
         self.data_ndim = dim
         self.dist_dominant = distrax.Normal(jnp.array([0.0]), jnp.array([3.0]))
         self.mean_other = jnp.zeros(dim - 1, dtype=float)

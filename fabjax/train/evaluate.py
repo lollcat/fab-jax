@@ -3,6 +3,7 @@ from typing import Union, Tuple, Callable, Optional
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 from fabjax.sampling.smc import SequentialMonteCarloSampler
 from fabjax.sampling.resampling import log_effective_sample_size
 from fabjax.flow.flow import Flow
@@ -14,7 +15,7 @@ def setup_fab_eval_function(
       flow: Flow,
       ais: SequentialMonteCarloSampler,
       log_p_x: Callable[[chex.Array], chex.Array],
-      batch_size: int,
+      eval_n_samples: int,
       inner_batch_size: int,
       log_Z_true: Optional[float] =  None
 ) -> Callable[[chex.ArrayTree, chex.PRNGKey], dict]:
@@ -36,20 +37,21 @@ def setup_fab_eval_function(
             return None, (log_w_flow, log_w)
         
         # Run scan function.
-        n_batches = (batch_size // inner_batch_size) + 1
+        n_batches = np.ceil(eval_n_samples / inner_batch_size).astype(int)
         _, (log_w_flow, log_w_ais) = jax.lax.scan(inner_fn, init=None, xs=jax.random.split(key, n_batches))
 
-        n_samples = n_batches * inner_batch_size
-        assert n_samples == log_w_ais.flatten().shape[0]
+        # Ensure correct number of samples used for estimate.
+        log_w_ais, log_w_flow = log_w_ais.flatten()[:eval_n_samples], log_w_flow.flatten()[:eval_n_samples]
 
-        log_z_flow = jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples)
-        log_z_ais = jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
+        # Compute estimate.
+        log_z_flow = jax.nn.logsumexp(log_w_flow) - jnp.log(eval_n_samples)
+        log_z_ais = jax.nn.logsumexp(log_w_ais) - jnp.log(eval_n_samples)
 
         # Compute metrics
         info = {}
         info.update(
-            eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow.flatten())),
-            eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())),
+            eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow)),
+            eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais)),
                     )
         if log_Z_true is not None:
             info.update(abs_err_log_z_flow=jnp.abs(log_z_flow - log_Z_true),

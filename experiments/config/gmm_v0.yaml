@@ -7,7 +7,7 @@ defaults:
 
 flow:
   n_layers: 8
-  transform_type: real_nvp
+  transform_type: spline # spline or real_nvp
   conditioner_mlp_units: [128, 128]
   spline_max: 40. # If using spline need bounds to match problem.
   spline_min: -40.
@@ -28,3 +28,7 @@ fab:
       init_step_size: 5.  # Needs to be big enough to jump between modes
       target_p_accept: 0.65
       tune_step_size: false
+
+
+training:
+  eval_batch_size: 2_000

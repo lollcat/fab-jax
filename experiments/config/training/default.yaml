@@ -1,19 +1,19 @@
 optimizer:
-    init_lr: 2e-5
+    init_lr: 1e-6
     optimizer_name: adam
     use_schedule: true
     peak_lr: 2e-4
     end_lr: 0.
-    warmup_n_epoch: 10
+    warmup_n_epoch: 20
     max_global_norm: null
     max_param_grad: null
     dynamic_grad_ignore_and_clip: true
     dynamic_grad_ignore_factor: 10. # When to fully ignore gradient.
     dynamic_grad_norm_factor: 2. # When to clip gradient norm.
     dynamic_grad_norm_window: 100 # Window to track median gradient norm over.
-n_epoch: 1000
-batch_size: 128
-eval_batch_size: 10_000 # For reverse ESS calculation.
+n_epoch: 2000
+batch_size: 200
+eval_batch_size: 2_000 # For reverse ESS calculation and estimation of log_Z
 plot_batch_size: 1_000
 use_64_bit: false
 seed: 0

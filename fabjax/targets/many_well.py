@@ -72,7 +72,7 @@ class ManyWellEnergy(Target):
         log_Z = self.double_well_energy.log_Z * self.n_wells
         # TODO: Add rejection sampling samples.
         super().__init__(dim=dim, log_Z=log_Z, can_sample=False, n_plots=1,
-                         n_model_samples_eval=1000, n_target_samples_eval=1000)
+                         n_model_samples_eval=2000, n_target_samples_eval=1000)
 
         self.centre = 1.7
         self.max_dim_for_all_modes = 40  # otherwise we get memory issues on huuuuge test set
