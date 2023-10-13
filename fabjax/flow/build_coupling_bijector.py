@@ -30,7 +30,7 @@ def build_split_coupling_bijector(
         identity_init: bool,
         conditioner_mlp_units: Sequence[int],
         transform_type: str = 'spline',
-        restrict_scale_rnvp: bool = True,  # Trades stability for expressivity.
+        restrict_scale_rnvp: bool = True,  # Hugely improves stability, strong reccomend.
         spline_max: float = 10.,
         spline_min: float = -10.,
         spline_num_bins: int = 8,
