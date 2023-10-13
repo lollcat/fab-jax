@@ -23,8 +23,6 @@ fab:
 
 
 training:
-  optimizer:
-    peak_lr: 2e-4
   eval_batch_size: 2_000
   n_epoch: 2e4
   batch_size: 1024
