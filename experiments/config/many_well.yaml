@@ -1,4 +1,5 @@
 defaults:
+  - fab: default
   - flow: default
   - training: default
   - hydra: default
@@ -8,30 +9,9 @@ target:
   dim: 32
 
 fab:
-  alpha: 2.  # alpha-divergence param
-  use_kl_loss: false # additional KL loss.
-  w_adjust_clip: 10.
   smc:
-    use_resampling: false
-    n_intermediate_distributions: 2
-    spacing_type: linear
-    transition_operator: metropolis # [hmc or metropolis]
-    hmc:
-      n_outer_steps: 1
-      n_inner_steps: 5
-      init_step_size: 1e-2
-      target_p_accept: 0.65
-      tune_step_size: true
-    metropolis:
-      n_outer_steps: 1
-      init_step_size: 1.  # Needs to be big enough to jump between modes
-      target_p_accept: 0.65
-      tune_step_size: false
-  buffer:
-    with_buffer: True
-    buffer_max_length_in_batches: 400
-    buffer_min_length_in_batches: 40
-    n_updates_per_smc_forward_pass: 4
+    n_intermediate_distributions: 8
+    transition_operator: hmc # [hmc or metropolis]
 
 training:
   n_epoch: 1e4

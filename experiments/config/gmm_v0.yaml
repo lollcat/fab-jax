@@ -1,20 +1,19 @@
 defaults:
+  - fab: default
   - flow: default
   - training: default
   - hydra: default
   - _self_
 
 flow:
-  transform_type: spline
-  spline_max: 40.
+  n_layers: 8
+  transform_type: real_nvp
+  conditioner_mlp_units: [128, 128]
+  spline_max: 40. # If using spline need bounds to match problem.
   spline_min: -40.
 
 fab:
-  alpha: 2.  # alpha-divergence param
-  use_kl_loss: false # additional KL loss.
-  w_adjust_clip: 10.
   smc:
-    use_resampling: false
     n_intermediate_distributions: 2
     spacing_type: linear
     transition_operator: hmc # [hmc or metropolis]
@@ -29,13 +28,3 @@ fab:
       init_step_size: 5.  # Needs to be big enough to jump between modes
       target_p_accept: 0.65
       tune_step_size: false
-  buffer:
-    with_buffer: True
-    buffer_max_length_in_batches: 400
-    buffer_min_length_in_batches: 40
-    n_updates_per_smc_forward_pass: 4
-
-#training:
-#  optimizer:
-#    use_schedule: false
-#    init_lr: 3e-4
