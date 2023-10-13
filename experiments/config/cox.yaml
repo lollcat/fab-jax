@@ -9,9 +9,9 @@ target:
   num_grid_per_dim: 40  # [32 or 40]
 
 flow:
-  n_layers: 12
+  n_layers: 8
   transform_type: real_nvp # spline or real_nvp
-  conditioner_mlp_units: [256, 256]
+  conditioner_mlp_units: [128, 128]
   act_norm: false
 
 
@@ -23,8 +23,9 @@ fab:
 
 
 training:
-  eval_batch_size: 2_000
-  n_epoch: 2e4
+  eval_batch_size: 20_000
+  n_samples_log_Z: 2_000
+  n_epoch: 3e4
   batch_size: 1024
 
 
