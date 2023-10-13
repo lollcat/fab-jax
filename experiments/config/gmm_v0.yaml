@@ -9,8 +9,9 @@ flow:
   n_layers: 8
   transform_type: spline # spline or real_nvp
   conditioner_mlp_units: [128, 128]
-  spline_max: 40. # If using spline need bounds to match problem.
+  spline_max: 40. # If using spline then it helps to have bounds to roughly match problem.
   spline_min: -40.
+  act_norm: true # Useful for spline flow.
 
 fab:
   smc:
@@ -20,7 +21,7 @@ fab:
     hmc:
       n_outer_steps: 1
       n_inner_steps: 5
-      init_step_size: 1e-2
+      init_step_size: 1e-3
       target_p_accept: 0.65
       tune_step_size: true
     metropolis:

@@ -20,8 +20,9 @@ flow:
   n_layers: 8
   transform_type: spline # spline or real_nvp
   conditioner_mlp_units: [128, 128]
-  spline_max: 10. # If using spline need bounds to roughly match problem (or use act norm for scaling).
+  spline_max: 10. # If using spline then it helps to have bounds to roughly match problem.
   spline_min: -10.
+  act_norm: true # Useful for spline flow.
 
 training:
   eval_batch_size: 2_000
