@@ -59,7 +59,7 @@ def build_split_coupling_bijector(
             if transform_type == "real_nvp":
                 scale_logit, shift = jnp.split(params, 2, axis=-1)
                 if restrict_scale_rnvp:
-                    scale_logit_bijector = tfp.bijectors.Sigmoid(low=0.01, high=10.)
+                    scale_logit_bijector = tfp.bijectors.Sigmoid(low=0.1, high=10.)
                     scale_logit_init = scale_logit_bijector.inverse(1.)
                     scale = scale_logit_bijector(scale_logit + scale_logit_init)
                 else:
