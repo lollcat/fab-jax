@@ -3,6 +3,7 @@ from typing import Union, Tuple, Callable, Optional
 import chex
 import jax
 import jax.numpy as jnp
+import numpy as np
 from fabjax.sampling.smc import SequentialMonteCarloSampler
 from fabjax.sampling.resampling import log_effective_sample_size
 from fabjax.flow.flow import Flow
@@ -14,8 +15,9 @@ def setup_fab_eval_function(
       flow: Flow,
       ais: SequentialMonteCarloSampler,
       log_p_x: Callable[[chex.Array], chex.Array],
-      batch_size: int,
+      eval_n_samples: int,
       inner_batch_size: int,
+      log_Z_n_samples: int,
       log_Z_true: Optional[float] =  None
 ) -> Callable[[chex.ArrayTree, chex.PRNGKey], dict]:
     """Evaluate the ESS of the flow, and AIS. """
@@ -36,26 +38,38 @@ def setup_fab_eval_function(
             return None, (log_w_flow, log_w)
         
         # Run scan function.
-        n_batches = (batch_size // inner_batch_size) + 1
-        _, (log_w_flow, log_w_ais) = jax.lax.scan(inner_fn, init=None, xs=jax.random.split(key, n_batches))
+        n_batches = np.ceil(eval_n_samples / inner_batch_size).astype(int)
+        _, (log_w_flow, log_w_ais) = jax.lax.scan(inner_fn, init=None, xs=jax.random.split(key, n_batches),
+                                                  unroll=min(2, n_batches))
 
-        n_samples = n_batches * inner_batch_size
-        assert n_samples == log_w_ais.flatten().shape[0]
-
-        log_z_flow = jax.nn.logsumexp(log_w_flow.flatten()) - jnp.log(n_samples)
-        log_z_ais = jax.nn.logsumexp(log_w_ais.flatten()) - jnp.log(n_samples)
+        # Ensure correct number of samples used for estimate.
+        log_w_ais, log_w_flow = log_w_ais.flatten()[:eval_n_samples], log_w_flow.flatten()[:eval_n_samples]
 
         # Compute metrics
         info = {}
         info.update(
-            eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow.flatten())),
-            eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais.flatten())),
+            eval_ess_flow=jnp.exp(log_effective_sample_size(log_w_flow)),
+            eval_ess_ais=jnp.exp(log_effective_sample_size(log_w_ais)),
                     )
+
+        # Compute estimates of log_Z.
+        # Reshape into multiple batches of length log_Z_n_samples.
+        n_minibatches = log_w_flow.shape[0] // log_Z_n_samples
+        log_w_ais, log_w_flow = log_w_ais[:n_minibatches*log_Z_n_samples], log_w_flow[:n_minibatches*log_Z_n_samples]
+        log_w_flow = jnp.reshape(log_w_flow, (n_minibatches, log_Z_n_samples))
+        log_w_ais = jnp.reshape(log_w_ais, (n_minibatches, log_Z_n_samples))
+        log_z_flow = jax.nn.logsumexp(log_w_flow, axis=-1) - jnp.log(log_Z_n_samples)
+        log_z_ais = jax.nn.logsumexp(log_w_ais, axis=-1) - jnp.log(log_Z_n_samples)
+        chex.assert_shape(log_z_flow, (n_minibatches,))
+        chex.assert_shape(log_z_ais, (n_minibatches,))
+
+
         if log_Z_true is not None:
-            info.update(abs_err_log_z_flow=jnp.abs(log_z_flow - log_Z_true),
-                        abs_err_log_z_ais=jnp.abs(log_z_ais - log_Z_true))
+            info.update(mean_abs_err_log_z_flow=jnp.mean(jnp.abs(log_z_flow - log_Z_true)),
+                        mean_abs_err_log_z_ais=jnp.mean(jnp.abs(log_z_ais - log_Z_true)))
         else:
-            info.update(log_z_flow=log_z_flow, log_z_ais=log_z_ais)
+            # Report single estimate of log_Z with log_Z_n_samples (no average error to report)
+            info.update(log_z_flow=log_z_flow[0], log_z_ais=log_z_ais[0])
         return info
 
     return eval_fn

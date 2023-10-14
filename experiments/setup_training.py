@@ -214,8 +214,9 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
                     alpha=1., use_resampling=False)
     _eval_fn = setup_fab_eval_function(
           flow=flow, ais=ais_eval, log_p_x=log_prob_target,
-          batch_size=eval_batch_size,
+          eval_n_samples=eval_batch_size,
           inner_batch_size=batch_size,
+          log_Z_n_samples=cfg.training.n_samples_log_Z,
           log_Z_true=target.log_Z
          )
 

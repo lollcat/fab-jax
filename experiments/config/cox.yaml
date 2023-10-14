@@ -1,4 +1,5 @@
 defaults:
+  - fab: default
   - flow: default
   - training: default
   - hydra: default
@@ -8,47 +9,24 @@ target:
   num_grid_per_dim: 40  # [32 or 40]
 
 flow:
-  n_layers: 8
+  n_layers: 12
   transform_type: real_nvp # spline or real_nvp
-  act_norm: false
   conditioner_mlp_units: [256, 256]
+  act_norm: false
+
 
 
 fab:
-  alpha: 2.  # alpha-divergence param
-  use_kl_loss: false # additional KL loss.
-  w_adjust_clip: 10.
   smc:
-    use_resampling: false
     n_intermediate_distributions: 10
-    spacing_type: linear
     transition_operator: hmc # [hmc or metropolis]
-    hmc:
-      n_outer_steps: 1
-      n_inner_steps: 5
-      init_step_size: 1e-2
-      target_p_accept: 0.65
-      tune_step_size: true
-    metropolis:
-      n_outer_steps: 1
-      init_step_size: 1.  # Needs to be big enough to jump between modes
-      target_p_accept: 0.65
-      tune_step_size: false
-  buffer:
-    with_buffer: True
-    buffer_max_length_in_batches: 400
-    buffer_min_length_in_batches: 40
-    n_updates_per_smc_forward_pass: 4
 
 
 training:
-  n_epoch: 1e4
+  eval_batch_size: 20_000
+  n_samples_log_Z: 2_000
+  n_epoch: 3e4
   batch_size: 1024
-  eval_batch_size: 2_000
-  plot_batch_size: 1_000
-  seed: 0
-  n_checkpoints: 0
-  n_eval: 20
 
 
 logger:
@@ -56,7 +34,7 @@ logger:
 #  pandas_logger:
 #    save_period: 1000 # how often to save the pandas dataframe as a csv
   wandb:
-    name: cox_${target.num_grid_per_dim}_512_512_512
+    name: cox_${target.num_grid_per_dim}_LONG256_12Lay
     project: fab
     entity: flow-ais-bootstrap
     tags: [cox,fab,fabjax]
