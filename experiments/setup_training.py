@@ -54,12 +54,12 @@ class FABTrainConfig(NamedTuple):
     optimizer: optax.GradientTransformation
     use_buffer: bool
     logger: Logger
+    seed: int
     buffer: Optional[PrioritisedBuffer] = None
     n_updates_per_smc_forward_pass: Optional[int] = None
     use_reverse_kl_loss: bool = False
     w_adjust_clip: float = 10.
     n_checkpoints: int = 0
-    seed: int = 0
     save: bool = False
     use_64_bit: bool = False
 
@@ -239,7 +239,7 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
                             use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip,
                             eval_fn=eval_fn, use_reverse_kl_loss=use_kl_loss,
-                            logger=logger)
+                            logger=logger, seed=cfg.training.seed)
 
     return config
 
