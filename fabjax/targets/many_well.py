@@ -192,6 +192,8 @@ class ManyWellEnergy(Target):
         info.update(log_lik=jnp.mean(log_prob_q),
                     log_forward_ess=log_forward_ess,
                     forward_ess=jnp.exp(log_forward_ess))
+
+
         return info
 
 

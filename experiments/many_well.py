@@ -9,8 +9,9 @@ from fabjax.targets.many_well import ManyWellEnergy
 
 @hydra.main(config_path="./config", config_name="many_well.yaml")
 def run(cfg: DictConfig):
-    local = True
+    local = False
     if local:
+        cfg.training.n_epoch = 1000
         cfg.target.dim = 6
         if "logger" in cfg.keys():
             del cfg.logger
