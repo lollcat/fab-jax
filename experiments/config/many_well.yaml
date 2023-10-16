@@ -6,7 +6,7 @@ defaults:
   - _self_
 
 target:
-  dim: 6
+  dim: 32
 
 fab:
   smc:
