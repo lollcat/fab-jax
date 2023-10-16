@@ -9,6 +9,12 @@ from fabjax.targets.many_well import ManyWellEnergy
 
 @hydra.main(config_path="./config", config_name="many_well.yaml")
 def run(cfg: DictConfig):
+    local = True
+    if local:
+        cfg.target.dim = 6
+        if "logger" in cfg.keys():
+            del cfg.logger
+
     if cfg.training.use_64_bit:
         jax.config.update("jax_enable_x64", True)
 

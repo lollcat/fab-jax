@@ -27,3 +27,14 @@ flow:
 training:
   eval_batch_size: 20_000 # For reverse ESS calculation
   n_samples_log_Z: 2_000 # eval_batch_size will be split into multiple batches of size n_samples_log_Z.
+
+
+logger:
+#  list_logger: null
+#  pandas_logger:
+#    save_period: 1000 # how often to save the pandas dataframe as a csv
+  wandb:
+    name: gmm_v1
+    project: fab
+    entity: flow-ais-bootstrap
+    tags: [gmm_v1,fab,fabjax]
