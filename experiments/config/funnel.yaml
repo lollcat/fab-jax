@@ -19,7 +19,8 @@ fab:
 
 
 training:
-  eval_batch_size: 2_000
+  eval_batch_size: 20_000 # For reverse ESS calculation
+  n_samples_log_Z: 2_000 # eval_batch_size will be split into multiple batches of size n_samples_log_Z.
   n_epoch: 2000
   batch_size: 1024
 

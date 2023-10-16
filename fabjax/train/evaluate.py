@@ -81,9 +81,9 @@ def calculate_log_forward_ess(
         log_Z: Optional[float] = None
 ) -> chex.Array:
 
-    """Calculate forward ess.
-    log_w = p(x)/q(x), where x ~ p(x).
-    This can be passed as the `further_fn` to `eacf.train.base.eval_fn`."""
+    """Calculate forward ess, either using exact log_Z if it is known, or via estimating it from the samples.
+    NB: log_q = p(x)/q(x) where x ~ p(x).
+    """
     if mask is None:
         mask = jnp.ones_like(log_w)
 
@@ -95,6 +95,10 @@ def calculate_log_forward_ess(
     else:
         log_z_inv = - log_Z
 
-    log_z_expectation_p_over_q = jax.nn.logsumexp(log_w, b=mask) - jnp.log(jnp.sum(mask))
-    log_forward_ess = - log_z_inv - log_z_expectation_p_over_q
+    # log ( Z * E_p[p(x)/q(x)] )
+    log_z_times_expectation_p_of_p_div_q = jax.nn.logsumexp(log_w, b=mask) - jnp.log(jnp.sum(mask))
+    # ESS (as fraction of 1) = 1/E_p[p(x)/q(x)]
+    # ESS = Z / ( Z * E_p[p(x)/q(x)] )
+    # Log ESS = - log Z^{-1} -  log ( Z * E_p[p(x)/q(x)] )
+    log_forward_ess = - log_z_inv - log_z_times_expectation_p_of_p_div_q
     return log_forward_ess

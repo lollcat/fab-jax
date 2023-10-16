@@ -69,7 +69,6 @@ class FABTrainConfig(NamedTuple):
 def setup_plotter(flow, smc, target: Target, plot_batch_size,
                   buffer: Optional[PrioritisedBuffer] = None):
     @jax.jit
-    @chex.assert_max_traces(3)
     def get_data_for_plotting(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey):
         x0 = flow.sample_apply(state.flow_params, key, (plot_batch_size,))
 

@@ -10,6 +10,11 @@ from fabjax.targets.gmm_v1 import GaussianMixture2D
 
 @hydra.main(config_path="./config", config_name="gmm_v1.yaml")
 def run(cfg: DictConfig):
+    local = False
+    if local:
+        if "logger" in cfg.keys():
+            del cfg.logger
+
     if cfg.training.use_64_bit:
         jax.config.update("jax_enable_x64", True)
 
