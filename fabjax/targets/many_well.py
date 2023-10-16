@@ -1,5 +1,7 @@
 from typing import Callable, Tuple
 
+from warnings import warn
+
 import matplotlib.pyplot as plt
 import jax.numpy as jnp
 import jax
@@ -133,7 +135,7 @@ class ManyWellEnergy(Target):
             assert n_modes == dim_1_vals.shape[0]
             test_set = jnp.zeros((n_modes, dim))
             test_set = test_set.at[:, jnp.arange(dim) % 2 == 0].set(dim_1_vals)
-            self.test_set = test_set
+            self.modes_test_set = test_set
         else:
             raise NotImplementedError("still need to implement this")
 
@@ -144,6 +146,8 @@ class ManyWellEnergy(Target):
         self.double_well_samples = self.double_well_energy.sample(
             key=jax.random.PRNGKey(0), shape=(int(1e6),))
 
+        if self.n_target_samples_eval < self.modes_test_set.shape[0]:
+            warn("Evaluation occuring on subset of the modes test set.")
 
     def log_prob(self, x):
         return jnp.sum(jnp.stack([self.double_well_energy.log_prob(x[..., i*2:i*2+2]) for i in range(
@@ -165,13 +169,22 @@ class ManyWellEnergy(Target):
         plot_contours_2D(self.log_prob_2D, ax, bound=self._plot_bound, levels=20)
         plot_marginal_pair(samples, ax, bounds=(-self._plot_bound, self._plot_bound))
 
-    def _sample(self, key: chex.PRNGKey, n: int) -> chex.Array:
+    def get_eval_samples(self, key: chex.PRNGKey, n: int) -> Tuple[chex.Array, chex.Array]:
+        key1, key2 = jax.random.split(key)
         dw_sample_indices = jax.random.randint(
             minval=0, maxval=self.double_well_samples.shape[0],
-            key=key, shape=(n*self.n_wells,))
+            key=key1, shape=(n*self.n_wells,))
         dw_samples = self.double_well_samples[dw_sample_indices]
         samples_p = jnp.reshape(dw_samples, (-1, self.dim))
-        return samples_p
+
+        if n < self.modes_test_set.shape[0]:
+            mode_sample_indices = jax.random.choice(
+                a=jnp.arange(self.modes_test_set.shape[0]),
+                key=key2, shape=(n,), replace=False)
+            samples_modes = self.modes_test_set[mode_sample_indices]
+        else:
+            samples_modes = self.modes_test_set
+        return samples_p, samples_modes
 
     def evaluate(self,
                  model_log_prob_fn: LogProbFn,
@@ -179,12 +192,11 @@ class ManyWellEnergy(Target):
                  key: chex.PRNGKey,
                  ) -> dict:
         """Evaluate a model. Note that reverse ESS will be estimated separately, so should not be estimated here."""
-        key1, key2 = jax.random.split(key)
 
         info = {}
 
         # Evaluate on (close to exact) samples from target.
-        samples_p = self._sample(key1, self.n_target_samples_eval)
+        samples_p, samples_modes = self.get_eval_samples(key, self.n_target_samples_eval)
         log_prob_q = model_log_prob_fn(samples_p)
         log_prob_p = self.log_prob(samples_p)
         log_w = log_prob_p - log_prob_q
@@ -193,14 +205,15 @@ class ManyWellEnergy(Target):
                     log_forward_ess=log_forward_ess,
                     forward_ess=jnp.exp(log_forward_ess))
 
-
+        log_prob_modes = model_log_prob_fn(samples_modes)
+        info.update(log_prob_modes=jnp.mean(log_prob_modes))
         return info
 
 
 if __name__ == '__main__':
     target = ManyWellEnergy(dim=8)
     key1 = jax.random.PRNGKey(0)
-    samples_p = target._sample(key1, 400)
+    samples_p, samples_modes = target.get_eval_samples(key1, 400)
 
     fig, axs = plt.subplots()
     target.visualise(samples_p, [axs])
