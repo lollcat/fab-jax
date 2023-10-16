@@ -44,7 +44,6 @@ class TrainConfig(NamedTuple):
 
 def train(config: TrainConfig):
     """Generic Training script."""
-    chex.clear_trace_counter()
 
     if config.runtime_limit:
         start_time = time.time()

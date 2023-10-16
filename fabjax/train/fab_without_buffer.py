@@ -62,7 +62,6 @@ def build_fab_no_buffer_init_step_fns(flow: Flow, log_p_fn: LogProbFn,
         return TrainStateNoBuffer(flow_params=flow_params, key=key3, opt_state=opt_state, smc_state=smc_state)
 
     @jax.jit
-    @chex.assert_max_traces(4)
     def step(state: TrainStateNoBuffer) -> Tuple[TrainStateNoBuffer, Info]:
         key, subkey = jax.random.split(state.key)
         info = {}

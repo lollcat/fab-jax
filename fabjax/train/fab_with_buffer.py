@@ -152,7 +152,6 @@ def build_fab_with_buffer_init_step_fns(
 
 
     @jax.jit
-    @chex.assert_max_traces(4)
     def step(state: TrainStateWithBuffer) -> Tuple[TrainStateWithBuffer, Info]:
         """Perform a single iteration of the FAB algorithm."""
         info = {}
