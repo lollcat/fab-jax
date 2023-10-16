@@ -148,6 +148,7 @@ class ManyWellEnergy(Target):
 
         if self.n_target_samples_eval < self.modes_test_set.shape[0]:
             warn("Evaluation occuring on subset of the modes test set.")
+            print("Evaluation occuring on subset of the modes test set.")
 
     def log_prob(self, x):
         return jnp.sum(jnp.stack([self.double_well_energy.log_prob(x[..., i*2:i*2+2]) for i in range(
@@ -211,7 +212,7 @@ class ManyWellEnergy(Target):
 
 
 if __name__ == '__main__':
-    target = ManyWellEnergy(dim=8)
+    target = ManyWellEnergy(dim=32)
     key1 = jax.random.PRNGKey(0)
     samples_p, samples_modes = target.get_eval_samples(key1, 400)
 
