@@ -6,18 +6,18 @@ defaults:
   - _self_
 
 flow:
-  n_layers: 8
-  transform_type: spline # spline or real_nvp
-  conditioner_mlp_units: [128, 128]
-  spline_max: 40. # If using spline then it helps to have bounds to roughly match problem.
-  spline_min: -40.
-  act_norm: true # Useful for spline flow.
+  n_layers: 12
+  transform_type: real_nvp # spline or real_nvp
+  conditioner_mlp_units: [32, 32] # Small MLP allows for fast local run, and can help stability.
+  spline_max: 10. # If using spline then it helps to have bounds to roughly match problem.
+  spline_min: -10.
+  act_norm: false # Useful for spline flow.
 
 fab:
   smc:
-    n_intermediate_distributions: 2
+    n_intermediate_distributions: 3
     spacing_type: linear
-    transition_operator: hmc # [hmc or metropolis]
+    transition_operator: metropolis # [hmc or metropolis]
     hmc:
       n_outer_steps: 1
       n_inner_steps: 5
@@ -26,11 +26,12 @@ fab:
       tune_step_size: true
     metropolis:
       n_outer_steps: 1
-      init_step_size: 5.  # Needs to be big enough to jump between modes
+      init_step_size: 5.
       target_p_accept: 0.65
-      tune_step_size: false
+      tune_step_size: false # If false, then init_step_size needs to be reasonably good.
 
 
 training:
+  n_epoch: 4000
   eval_batch_size: 20_000 # For reverse ESS calculation
   n_samples_log_Z: 2_000 # eval_batch_size will be split into multiple batches of size n_samples_log_Z.

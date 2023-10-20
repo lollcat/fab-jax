@@ -13,8 +13,8 @@ from fabjax.utils.plot import plot_marginal_pair, plot_contours_2D
 class GMM(Target):
     def __init__(
             self,
-            dim: int = 2, n_mixes: int = 20, loc_scaling: float = 20,
-            var_scaling: float = 2.0, seed: int = 0,
+            dim: int = 2, n_mixes: int = 40, loc_scaling: float = 40,
+            scale_scaling: float = 1.0, seed: int = 0,
                  ) -> None:
         super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
                          n_model_samples_eval=1000, n_target_samples_eval=1000)
@@ -25,11 +25,11 @@ class GMM(Target):
         key = jax.random.PRNGKey(seed)
         logits = jnp.ones(n_mixes)
         mean = jax.random.uniform(shape=(n_mixes, dim), key=key, minval=-1.0, maxval=1.0) * loc_scaling
-        var = jnp.ones(shape=(n_mixes, dim)) * var_scaling
+        scale = jnp.ones(shape=(n_mixes, dim)) * scale_scaling
 
         mixture_dist = distrax.Categorical(logits=logits)
         components_dist = distrax.Independent(
-            distrax.Normal(loc=mean, scale=var), reinterpreted_batch_ndims=1
+            distrax.Normal(loc=mean, scale=scale), reinterpreted_batch_ndims=1
         )
         self.distribution = distrax.MixtureSameFamily(
             mixture_distribution=mixture_dist,
@@ -41,11 +41,6 @@ class GMM(Target):
 
     def log_prob(self, x: chex.Array) -> chex.Array:
         log_prob = self.distribution.log_prob(x)
-
-        # Can have numerical instabilities once log prob is very small. Manually override to prevent this.
-        # This will cause the flow will ignore regions with less than 1e-4 probability under the target.
-        valid_log_prob = log_prob > -1e4
-        log_prob = jnp.where(valid_log_prob, log_prob, -jnp.inf*jnp.ones_like(log_prob))
         return log_prob
 
     def sample(self, seed: chex.PRNGKey, sample_shape: chex.Shape = ()) -> chex.Array:

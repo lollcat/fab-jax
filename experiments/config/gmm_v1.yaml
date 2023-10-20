@@ -12,9 +12,9 @@ fab:
     transition_operator: metropolis # [hmc or metropolis]
     metropolis:
       n_outer_steps: 1
-      init_step_size: 1.  # Needs to be big enough to jump between modes
+      init_step_size: 1.
       target_p_accept: 0.65
-      tune_step_size: false
+      tune_step_size: false # If false, then init_step_size needs to be reasonably good.
 
 flow:
   n_layers: 8

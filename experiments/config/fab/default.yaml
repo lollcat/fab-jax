@@ -15,9 +15,9 @@ smc:
     tune_step_size: true
   metropolis:
     n_outer_steps: 1
-    init_step_size: 1.  # Needs to be big enough to jump between modes
-    target_p_accept: 0.65
-    tune_step_size: true
+    init_step_size: 1.
+    target_p_accept: 0.65 # Setting this lower can be good for exploration.
+    tune_step_size: true # If false, then init_step_size needs to be reasonably good.
 buffer:
   with_buffer: True
   buffer_max_length_in_batches: 400
