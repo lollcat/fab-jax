@@ -10,6 +10,7 @@ from fabjax.targets.gmm_v0 import GMM
 @hydra.main(config_path="./config", config_name="gmm_v0.yaml")
 def run(cfg: DictConfig):
     local = True
+
     if local:
         if "logger" in cfg.keys():
             del cfg.logger

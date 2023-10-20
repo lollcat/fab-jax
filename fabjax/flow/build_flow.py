@@ -39,10 +39,8 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
         return base
 
     def make_bijector():
-        # Note that bijector.inverse moves through this forwards, and bijector.fowards reverses the bijector order
+        # Note that bijector.inverse moves through this forwards, and bijector.forwards reverses the bijector order.
         bijectors = []
-        if config.act_norm:
-            bijectors.append(build_act_norm_layer(dim=config.dim, identity_init=config.identity_init))
         if 'split_coupling' in flow_type:
             bijector = build_split_coupling_bijector(
                 dim=config.dim,
@@ -55,6 +53,9 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
                 spline_num_bins=config.spline_num_bins,
             )
             bijectors.append(bijector)
+
+        if config.act_norm:
+            bijectors.append(build_act_norm_layer(dim=config.dim, identity_init=config.identity_init))
 
         return ChainWithExtra(bijectors)
 

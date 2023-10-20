@@ -12,7 +12,7 @@ from fabjax.utils.jax_util import inverse_softplus
 class UnconditionalAffine(distrax.Bijector):
     """Unconditioned Affine transform."""
     def __init__(self, get_params: Callable[[], Tuple[chex.Array, chex.Array]],
-                 restrict_scaling: bool = True, ):
+                 restrict_scaling: bool = True) -> None:
         super().__init__(event_ndims_in = 1,
                is_constant_jacobian = True,
                is_constant_log_det = True)
@@ -23,6 +23,7 @@ class UnconditionalAffine(distrax.Bijector):
     def get_params(self):
         scale_logit, shift = self._get_params()
         if self._restrict_scaling:
+            # Prevents any individual act norm layer doing a huge amount of scaling.
             scale_logit_bijector = tfp.bijectors.Sigmoid(low=0.02, high=50.)
             scale_logit_init = scale_logit_bijector.inverse(1.)
             scale = scale_logit_bijector(scale_logit + scale_logit_init)
@@ -59,7 +60,7 @@ def build_act_norm_layer(
     identity_init: bool,
     restrict_scaling: bool = True,  # Similar to real_nvp we can restrict the scaling size of act norm to improve stability.
 ):
-    assert identity_init == True, "Only this option currently configured."
+    assert identity_init is True, "Only this option currently configured."
 
     class GetScaleShift(nn.Module):
         @nn.compact
