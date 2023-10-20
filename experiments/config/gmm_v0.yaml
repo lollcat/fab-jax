@@ -29,6 +29,11 @@ fab:
       init_step_size: 5.
       target_p_accept: 0.65
       tune_step_size: false # If false, then init_step_size needs to be reasonably good.
+    point_is_valid_fn:
+      type: default # [default, in_bounds] - use in_bounds if we want to restrict SMC to the below bounds.
+      in_bounds:
+        min: -60 # For this problem these bounds would work well.
+        max: 60
 
 
 training:

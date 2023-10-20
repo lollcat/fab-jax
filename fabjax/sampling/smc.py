@@ -9,6 +9,7 @@ from typing import Callable
 from fabjax.sampling.base import TransitionOperator, LogProbFn, create_point, Point, get_intermediate_log_prob
 from fabjax.sampling.resampling import log_effective_sample_size, optionally_resample
 from fabjax.utils.jax_util import broadcasted_where
+from fabjax.sampling.point_is_valid import PointIsValidFn, default_point_is_valid_fn
 
 
 class SMCState(NamedTuple):
@@ -48,6 +49,8 @@ class SequentialMonteCarloSampler(NamedTuple):
         alpha: Alpha value in alpha-divergence. The SMC target will be set to \alpha log_p - (\alpha - 1) log_q
             which is the optimal target distribution for estimating the alpha-divergence loss.
             Typically we use \alpha=2. Alternatively setting \alpha=1 sets the AIS target to \log_p.
+        point_is_valid_fn: Determines whether a point is valid or invalid
+            (e.g. it could be invalid if it constains NaNs).
     """
     init: Callable[[chex.PRNGKey], SMCState]
     step: SmcStepFn
@@ -55,6 +58,7 @@ class SequentialMonteCarloSampler(NamedTuple):
     use_resampling: bool
     betas: chex.Array
     alpha: float = 2.
+    point_is_valid_fn: PointIsValidFn = default_point_is_valid_fn
 
 
 
@@ -73,7 +77,7 @@ def log_weight_contribution_point(point: Point, ais_step_index: int, betas: chex
 
 def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.Array, betas: chex.Array,
                         ais_step_index: int, transition_operator: TransitionOperator,
-                        log_q_fn: LogProbFn, log_p_fn: LogProbFn, alpha: float) -> \
+                        log_q_fn: LogProbFn, log_p_fn: LogProbFn, alpha: float, point_is_valid_fn: PointIsValidFn) -> \
         Tuple[Tuple[Point, chex.Array], Tuple[chex.ArrayTree, dict]]:
     """Perform inner iteration of AIS, incrementing the log_w appropriately."""
     chex.assert_rank(betas, 1)
@@ -88,8 +92,7 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
         beta=beta, alpha=alpha, log_q_fn=log_q_fn, log_p_fn=log_p_fn)
 
     # Remove invalid samples.
-    valid_samples = jnp.isfinite(new_point.log_q) & jnp.isfinite(new_point.log_p) & \
-                    jnp.all(jnp.isfinite(new_point.x), axis=-1)
+    valid_samples = jax.vmap(point_is_valid_fn)(new_point)
     info.update(n_valid_samples = jnp.sum(valid_samples))
     new_point = jax.tree_map(lambda a, b: broadcasted_where(valid_samples, a, b), new_point, point)
 
@@ -100,10 +103,13 @@ def ais_inner_transition(point: Point, log_w: chex.Array, trans_op_state: chex.A
     return (new_point, log_w), (trans_op_state, info)
 
 
-def replace_invalid_samples_with_valid_ones(point: Point, key: chex.PRNGKey) -> Point:
-    """Replace invalid (non-finite) samples in the point with valid ones (where valid ones are sampled uniformly)."""
-    valid_samples = jnp.isfinite(point.log_q) & jnp.isfinite(point.log_p) & \
-                    jnp.all(jnp.isfinite(point.x), axis=-1)
+def replace_invalid_samples_with_valid_ones(
+        point: Point, key: chex.PRNGKey, point_is_valid_fn: PointIsValidFn) -> Point:
+    """Replace invalid (non-finite) samples in the point with valid ones
+    (where valid ones are sampled uniformly)."""
+    chex.assert_rank(point.x, 2)
+
+    valid_samples = jax.vmap(point_is_valid_fn)(point)
     p = jnp.where(valid_samples, jnp.ones_like(valid_samples), jnp.zeros_like(valid_samples))
     indices = jax.random.choice(key, jnp.arange(valid_samples.shape[0]), p=p, shape=valid_samples.shape)
     alt_points = jax.tree_map(lambda x: x[indices], point)
@@ -120,7 +126,8 @@ def build_smc(
         alpha: float = 2.,
         use_resampling: bool = False,
         resampling_threshold: float = 0.3,
-        verbose: bool = False
+        verbose: bool = False,
+        point_is_valid_fn: PointIsValidFn = default_point_is_valid_fn
               ) -> SequentialMonteCarloSampler:
     """
     Create a Sequential Monte Carlo Sampler.
@@ -136,6 +143,8 @@ def build_smc(
             `resampling_threshold`. Is equivalent to AIS if resampling is not used.
         resampling_threshold: Threshold for resampling.
         verbose: Whether to include info from mcmc.
+        point_is_valid_fn: Determines whether a point is valid or invalid
+            (e.g. it could be invalid if it constains NaNs).
 
     Returns:
         smc: A Sequential Monte Carlo Sampler.
@@ -191,7 +200,8 @@ def build_smc(
 
         # Sometimes the flow produces nan samples - remove these.
         key, subkey = jax.random.split(smc_state.key)
-        point0 = replace_invalid_samples_with_valid_ones(point0, subkey)
+        point0 = replace_invalid_samples_with_valid_ones(
+            point=point0, key=subkey, point_is_valid_fn=point_is_valid_fn)
 
         log_w_init = log_weight_contribution_point(point0, 0, betas=betas, alpha=alpha)
         log_w = log_w_init
@@ -211,7 +221,7 @@ def build_smc(
                 point=point, log_w=log_w, trans_op_state=trans_op_state, betas=betas,
                 ais_step_index=ais_step_index,
                 transition_operator=transition_operator, log_q_fn=log_q_fn, log_p_fn=log_p_fn,
-                alpha=alpha)
+                alpha=alpha, point_is_valid_fn=point_is_valid_fn)
             info.update(info_transition)
             return (point, log_w), (trans_op_state, info)
 

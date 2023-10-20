@@ -2,6 +2,7 @@ from typing import NamedTuple, Callable, Optional, Union
 
 import os
 import pathlib
+from functools import partial
 
 import chex
 import optax
@@ -18,8 +19,7 @@ from fabjax.train import build_fab_no_buffer_init_step_fns, LogProbFn, \
 from fabjax.buffer.prioritised_buffer import build_prioritised_buffer, PrioritisedBuffer
 from fabjax.flow import build_flow, Flow, FlowDistConfig
 from fabjax.sampling import build_smc, build_blackjax_hmc, SequentialMonteCarloSampler, simple_resampling, \
-    build_metropolis
-
+    build_metropolis, default_point_is_valid_fn, point_is_valid_if_in_bounds_fn
 from fabjax.utils.optimize import get_optimizer, OptimizerConfig
 from fabjax.utils.loggers import Logger, ListLogger, WandbLogger, PandasLogger
 from fabjax.targets.base import Target
@@ -147,11 +147,6 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
     n_updates_per_smc_forward_pass = cfg.fab.buffer.n_updates_per_smc_forward_pass
     w_adjust_clip = jnp.inf if cfg.fab.w_adjust_clip is None else cfg.fab.w_adjust_clip
 
-    # Flow.
-    n_layers = cfg.flow.n_layers
-    conditioner_mlp_units = cfg.flow.conditioner_mlp_units
-    act_norm = cfg.flow.act_norm
-
     # SMC.
     use_resampling = cfg.fab.smc.use_resampling
     n_intermediate_distributions = cfg.fab.smc.n_intermediate_distributions
@@ -189,9 +184,18 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
     else:
         raise NotImplementedError
 
+
+    if cfg.fab.smc.point_is_valid_fn.type == "in_bounds":
+        point_is_valid_fn = partial(point_is_valid_if_in_bounds_fn,
+                                    min_bounds=cfg.fab.smc.point_is_valid_fn.in_bounds.min,
+                                    max_bounds=cfg.fab.smc.point_is_valid_fn.in_bounds.max
+                                    )
+    else:
+        point_is_valid_fn = default_point_is_valid_fn
+
     smc = build_smc(transition_operator=transition_operator,
                     n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
-                    alpha=alpha, use_resampling=use_resampling)
+                    alpha=alpha, use_resampling=use_resampling, point_is_valid_fn=point_is_valid_fn)
 
     # Optimizer
     optimizer, lr = get_optimizer(optimizer_config)
@@ -208,9 +212,12 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
     
     # Eval function
     # Eval uses AIS, and sets alpha=1 which is equivalent to targetting p.
-    ais_eval = build_smc(transition_operator=transition_operator,
-                    n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
-                    alpha=1., use_resampling=False)
+    ais_eval = build_smc(
+        transition_operator=transition_operator,
+        n_intermediate_distributions=n_intermediate_distributions, spacing_type=spacing_type,
+        alpha=1., use_resampling=False,
+        point_is_valid_fn=point_is_valid_fn
+                         )
     _eval_fn = setup_fab_eval_function(
           flow=flow, ais=ais_eval, log_p_x=log_prob_target,
           eval_n_samples=eval_batch_size,

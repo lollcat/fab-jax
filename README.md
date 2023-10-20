@@ -22,9 +22,14 @@ well, and then to move onto more challenging versions of the problem.
 
 ## Library
 Key components of FAB:
-- `sampling`: Running SMC with a trainable base q, and target p, targetting the optimal distribution for estimating alpha-divergence.
-   - `metropolis`: Propose step by adding Gaussian noise to sample and then accept/reject. Includes step size tuning.
-   - `hmc`: Hamiltonean Monte Carlo. Simple step size tuning.
+- `sampling`: Running AIS/SMC with a trainable base q, and target p, targetting the optimal distribution for estimating alpha-divergence.
+  - `Transition operators`: Currently the below MCMC transition operators are implemented.
+     - `metropolis`: Propose step by adding Gaussian noise to sample and then accept/reject. Includes step size tuning.
+     - `hmc`: Hamiltonean Monte Carlo. Simple step size tuning.
+  - `point_is_valid_fn`: Provides users ability to specify which points are valid (invalid points are rejected within AIS/SMC). This can improve the efficiency of MCMC, and training stability.
+    - `default_point_is_valid_fn`: Default setting. Rejects points with Nan values, or NaN density under the base/target.
+    - `point_is_valid_if_in_bounds_fn`: Allows specification of bounds for a problem. Points that fall outside the bounds are rejected.
+    - Write your own: The `point_is_valid_fn` is flexible to any criterion - so custom problem specific versions can be easily implemented.
 - `buffer`: Prioritised replay buffer. 
 
 these are written to be self-contained such that they can be easily ported into an existing code base.
