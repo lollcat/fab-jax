@@ -47,6 +47,10 @@ These problems may be run using the command
 ```shell
 python experiments/gmm_v0.py 
 ```
+When running the above command, ensure that you are in the repo's root directory with the $PYTHONPATH$ 
+set to the root directory (`export PYTHONPATH=$PWD`). 
+
+
 Additionally we have a quickstart notebook:
 
 <a href="https://colab.research.google.com/github/lollcat/fab-jax/blob/master/experiments/fabjax_quickstart.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
