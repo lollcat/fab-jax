@@ -1,5 +1,7 @@
 from typing import List
 
+from itertools import product
+
 import chex
 import jax.numpy as jnp
 import distrax
@@ -15,15 +17,14 @@ class GaussianMixture2D(Target):
     https://arxiv.org/abs/2310.02679
     https://github.com/zdhNarsil/Diffusion-Generative-Flow-Samplers/blob/main/target/distribution/gm.py
     """
-    def __init__(self, scale=0.5477222):
+    def __init__(self, scale=0.5477222, width_in_n_modes: int = 3):
         dim = 2
         super().__init__(dim=dim, log_Z=0.0, can_sample=True, n_plots=1,
                          n_model_samples_eval=1000, n_target_samples_eval=2000)
-        mean_ls = [
-            [-5., -5.], [-5., 0.], [-5., 5.],
-            [0., -5.], [0., 0.], [0., 5.],
-            [5., -5.], [5., 0.], [5., 5.],
-        ]
+        means_1_dim = jnp.arange(width_in_n_modes)*5
+        means_1_dim = means_1_dim - jnp.mean(means_1_dim)  # Centre
+        mean_ls = list(product(list(means_1_dim), list(means_1_dim)))
+
         nmode = len(mean_ls)
         mean = jnp.stack([jnp.array(xy) for xy in mean_ls])
         comp = distrax.Independent(
@@ -33,7 +34,7 @@ class GaussianMixture2D(Target):
         mix = distrax.Categorical(logits=jnp.ones(nmode))
         self.gmm = distrax.MixtureSameFamily(mixture_distribution=mix,
                                              components_distribution=comp)
-        self._plot_bound = 8
+        self._plot_bound = mean.max() + 3
 
     def log_prob(self, x):
         log_prob = self.gmm.log_prob(x)

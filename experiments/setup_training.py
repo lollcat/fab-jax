@@ -72,6 +72,8 @@ def setup_plotter(flow, smc, target: Target, plot_batch_size,
     def get_data_for_plotting(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey):
         x0 = flow.sample_apply(state.flow_params, key, (plot_batch_size,))
 
+        buffer_plot_size = 200
+
         def log_q_fn(x: chex.Array) -> chex.Array:
             return flow.log_prob_apply(state.flow_params, x)
 
@@ -80,7 +82,7 @@ def setup_plotter(flow, smc, target: Target, plot_batch_size,
         _, x_smc_resampled = simple_resampling(key, log_w, x_smc)
 
         if buffer is not None:
-            x_buffer = buffer.sample(key, state.buffer_state, plot_batch_size)[0]
+            x_buffer = buffer.sample(key, state.buffer_state, buffer_plot_size)[0]
         else:
             x_buffer = None
 
@@ -89,28 +91,30 @@ def setup_plotter(flow, smc, target: Target, plot_batch_size,
     def plot(state: Union[TrainStateNoBuffer, TrainStateWithBuffer], key: chex.PRNGKey):
         x0, x_smc, x_smc_resampled, x_buffer = get_data_for_plotting(state, key)
 
+
         if buffer:
-            figs_and_axes = [plt.subplots(2, 2, figsize=(10, 10)) for _ in range(target.n_plots)]
+            figs_and_axes = [plt.subplots(1, 3, figsize=(15, 5)) for _ in range(target.n_plots)]
             figs = [fig for fig, axs in figs_and_axes]
             axs = [axs.flatten() for fig, axs in figs_and_axes]
-            target.visualise(x_buffer, [ax[3] for ax in axs])
+            target.visualise(x_buffer, [ax[2] for ax in axs])
             for ax in axs:
-                ax[3].set_title("buffer samples")
+                ax[2].set_title("buffer samples")
         else:
-            figs_and_axes = [plt.subplots(3, figsize=(5, 15)) for _ in range(target.n_plots)]
+            figs_and_axes = [plt.subplots(1, 2, figsize=(10, 5)) for _ in range(target.n_plots)]
             figs = [fig for fig, axs in figs_and_axes]
             axs = [axs for fig, axs in figs_and_axes]
         target.visualise(x0, [ax[0] for ax in axs])
         target.visualise(x_smc, [ax[1] for ax in axs])
-        target.visualise(x_smc_resampled, [ax[2] for ax in axs])
 
         for ax in axs:
             ax[0].set_title("flow samples")
-            ax[1].set_title("smc samples")
-            ax[2].set_title("resampled smc samples")
+            ax[1].set_title("ais samples")
 
         plt.tight_layout()
         plt.show()
+
+        return figs
+
     return plot
 
 
