@@ -43,6 +43,25 @@ Additionally, we have
 ## Experiments
 Current problems include `cox`, `funnel` `gmm_v0` `gmm_v1` and `many_well`.
 
+These problems may be run using the command
+```shell
+python experiments/gmm_v0.py 
+```
+When running the above command, ensure that you are in the repo's root directory with the $PYTHONPATH$ 
+set to the root directory (`export PYTHONPATH=$PWD`). 
+
+
+Additionally we have a quickstart notebook:
+
+<a href="https://colab.research.google.com/github/lollcat/fab-jax/blob/master/experiments/fabjax_quickstart.ipynb" target="_parent"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/></a>
+
+
+We use the WANDB logger for training. 
+If you have a WANDB account then simply change the config inside `experiments/config/{problem_name}.yaml` 
+to match your WANDB project. Alternatively a `list_logger` or `pandas_logger` is available if you do not 
+use WANDB (the list logger is used inside the Quickstart notebook). 
+
+
 
 ## Related Libraries
 - [Annealed Flow Transport](https://github.com/google-deepmind/annealed_flow_transport/tree/master): CRAFT algorithm, and many target densities that were used in this library.

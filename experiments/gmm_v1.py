@@ -19,7 +19,7 @@ def run(cfg: DictConfig):
     if cfg.training.use_64_bit:
         jax.config.update("jax_enable_x64", True)
 
-    target = GaussianMixture2D()
+    target = GaussianMixture2D(width_in_n_modes=cfg.target.width_in_n_modes)
 
     fab_config = setup_fab_config(cfg, target)
     experiment_config = setup_general_train_config(fab_config)
