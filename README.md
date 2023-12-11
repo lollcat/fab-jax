@@ -57,7 +57,7 @@ These problems may be run using the command
 ```shell
 python experiments/gmm_v0.py 
 ```
-When running the above command, ensure that you are in the repo's root directory with the $PYTHONPATH$ 
+When running the above command, ensure that you are in the repo's root directory with the PYTHONPATH environment variable
 set to the root directory (`export PYTHONPATH=$PWD`). 
 
 
