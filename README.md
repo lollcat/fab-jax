@@ -43,11 +43,21 @@ Additionally, we have
 ## Experiments
 Current problems include `cox`, `funnel` `gmm_v0` `gmm_v1` and `many_well`.
 
+The performance of FAB for these problems in terms of accuracy in estimation of the 
+log normalizing constant are shown in the below table. 
+These results are estimated using 5 seeds (with standard error reported across seeds). For each seed we measure
+the mean absolute error (MAE) in the estimation of the log normalizing constant using 2000 samples per estimate, 
+where the MAE is averaged over 10 batches.
+
+| GMM  (`gmm_v1`)        | Funnel | Cox | Many Well |
+|------------------------|---|-----|--------|
+| 0.00269 $\pm$ 0.000538 |  0.00218 $\pm$ 0.000506 | 0.194 $\pm$ 0.0394 |  0.0316 $\pm$ 0.00417  |
+
 These problems may be run using the command
 ```shell
 python experiments/gmm_v0.py 
 ```
-When running the above command, ensure that you are in the repo's root directory with the $PYTHONPATH$ 
+When running the above command, ensure that you are in the repo's root directory with the PYTHONPATH environment variable
 set to the root directory (`export PYTHONPATH=$PWD`). 
 
 
