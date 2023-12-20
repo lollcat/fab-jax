@@ -158,6 +158,7 @@ def create_flow(recipe: FlowRecipe) -> Flow:
             x, log_det_prev = carry
             y, log_det = forward_and_log_det_single.apply(bijector_params, x)
             chex.assert_equal_shape((log_det_prev, log_det))
+            chex.assert_equal_shape((y, x))
             return (y, log_det_prev + log_det), None
 
         x = base_sample_fn.apply(params.base, key, shape)

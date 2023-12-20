@@ -9,7 +9,7 @@ from fabjax.targets.gmm_v0 import GMM
 
 @hydra.main(config_path="./config", config_name="gmm_v0.yaml")
 def run(cfg: DictConfig):
-    local = False
+    local = True
 
     if local:
         if "logger" in cfg.keys():
@@ -17,7 +17,7 @@ def run(cfg: DictConfig):
     if cfg.training.use_64_bit:
         jax.config.update("jax_enable_x64", True)
 
-    target = GMM()
+    target = GMM(dim=3)
 
     fab_config = setup_fab_config(cfg, target)
     experiment_config = setup_general_train_config(fab_config)

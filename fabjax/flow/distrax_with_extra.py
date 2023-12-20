@@ -120,7 +120,11 @@ class SplitCouplingWithExtra(distrax.SplitCoupling, BijectorWithExtra):
                  bijector: Callable[[BijectorParams], Union[BijectorWithExtra, distrax.Bijector]],
                  swap: bool = False,
                  split_axis: int = -1):
-        super().__init__(split_index, event_ndims, conditioner, bijector, swap, split_axis)
+        super().__init__(split_index=split_index,
+                         event_ndims=event_ndims,
+                         conditioner=conditioner,
+                         bijector=bijector,
+                         swap=swap, split_axis=split_axis)
 
     def _inner_bijector(self, params: BijectorParams) -> Union[BijectorWithExtra, distrax.Bijector]:
         """Returns an inner bijector for the passed params."""
