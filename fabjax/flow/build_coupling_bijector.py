@@ -43,7 +43,7 @@ def build_split_coupling_bijector(
     bijectors = []
     for swap in (True, False):
         params_after_split = dim - split_index
-        params_transformed = params_after_split if swap else split_index
+        params_transformed = split_index if swap else params_after_split
         if transform_type == "real_nvp":
             conditioner_n_params_out = params_transformed*2
         elif transform_type == "spline":
@@ -52,7 +52,8 @@ def build_split_coupling_bijector(
             raise NotImplementedError
 
 
-        conditioner = make_conditioner(f'splitcoupling_conditioner_swap{swap}', conditioner_n_params_out,
+        conditioner = make_conditioner(f'splitcoupling_conditioner_swap{swap}',
+                                       conditioner_n_params_out,
                                        conditioner_mlp_units, identity_init)
 
         def bijector_fn(params: chex.Array) -> distrax.Bijector:

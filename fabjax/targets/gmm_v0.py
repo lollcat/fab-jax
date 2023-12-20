@@ -54,7 +54,7 @@ class GMM(Target):
              ) -> None:
         """Visualise samples from the model."""
         assert len(axes) == self.n_plots
-
         ax = axes[0]
         plot_marginal_pair(samples, ax, bounds=(-self._plot_bound, self._plot_bound))
-        plot_contours_2D(self.log_prob, ax, bound=self._plot_bound, levels=50)
+        if self.dim == 2:
+            plot_contours_2D(self.log_prob, ax, bound=self._plot_bound, levels=50)

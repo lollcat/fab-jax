@@ -24,7 +24,7 @@ def build_metropolis(
 ) -> TransitionOperator:
 
     def init(key: chex.PRNGKey) -> MetropolisState:
-        return MetropolisState(key, jnp.array(init_step_size*dim))
+        return MetropolisState(key, jnp.array(init_step_size))
 
 
     def step(point: Point,
