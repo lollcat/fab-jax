@@ -6,18 +6,18 @@ defaults:
   - _self_
 
 flow:
-  n_layers: 12
-  transform_type: real_nvp # spline or real_nvp
-  conditioner_mlp_units: [32, 32] # Small MLP allows for fast local run, and can help stability.
-  spline_max: 10. # If using spline then it helps to have bounds to roughly match problem.
-  spline_min: -10.
-  act_norm: false # Useful for spline flow.
+  type: conv_coupling
+#  n_layers: 4
+#  transform_type: real_nvp # spline or real_nvp
+#  act_norm: false
+#  conditioner_mlp_units: [ 128, 128 ]
+
 
 fab:
   smc:
     n_intermediate_distributions: 3
     spacing_type: linear
-    transition_operator: metropolis # [hmc or metropolis]
+    transition_operator: hmc # [hmc or metropolis]
     hmc:
       n_outer_steps: 1
       n_inner_steps: 5
@@ -26,14 +26,11 @@ fab:
       tune_step_size: true
     metropolis:
       n_outer_steps: 1
-      init_step_size: 10.
+      init_step_size: 5.
       target_p_accept: 0.65
-      tune_step_size: false # If false, then init_step_size needs to be reasonably good.
+      tune_step_size: true # If false, then init_step_size needs to be reasonably good.
     point_is_valid_fn:
       type: default # [default, in_bounds] - use in_bounds if we want to restrict SMC to the below bounds.
-      in_bounds:
-        min: -60 # For this problem these bounds would work well.
-        max: 60
 
 
 training:

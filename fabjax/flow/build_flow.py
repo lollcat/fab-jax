@@ -6,6 +6,7 @@ import jax.numpy as jnp
 from fabjax.flow.flow import FlowRecipe, Flow, create_flow
 from fabjax.flow.distrax_with_extra import ChainWithExtra
 from fabjax.flow.build_coupling_bijector import build_split_coupling_bijector
+from fabjax.flow.conv_flow.build_conv_flow import build_conv_bijector
 from fabjax.flow.act_norm import build_act_norm_layer
 
 class FlowDistConfig(NamedTuple):
@@ -32,7 +33,7 @@ def build_flow(config: FlowDistConfig) -> Flow:
 def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
     flow_type = [config.type] if isinstance(config.type, str) else config.type
     for flow in flow_type:
-        assert flow in ['split_coupling']
+        assert flow in ['split_coupling', 'conv_coupling']
 
     def make_base() -> distrax.Distribution:
         base = distrax.MultivariateNormalDiag(loc=jnp.zeros(config.dim), scale_diag=jnp.ones(config.dim))
@@ -53,12 +54,20 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
                 spline_num_bins=config.spline_num_bins,
             )
             bijectors.append(bijector)
+        elif 'conv_coupling' in flow_type:
+            bijector = build_conv_bijector(
+                num_elem=config.dim
+            )
+            bijectors.append(bijector)
+        else:
+            raise NotImplementedError
 
         if config.act_norm:
             bijectors.append(build_act_norm_layer(dim=config.dim, identity_init=config.identity_init))
 
         return ChainWithExtra(bijectors)
 
+    use_flax = not ('conv_coupling' in flow_type)
 
     definition = FlowRecipe(
         make_base=make_base,
@@ -67,5 +76,6 @@ def create_flow_recipe(config: FlowDistConfig) -> FlowRecipe:
         config=config,
         dim=config.dim,
         compile_n_unroll=config.compile_n_unroll,
+        use_flax=use_flax
         )
     return definition
