@@ -47,7 +47,9 @@ class FABTrainConfig(NamedTuple):
     plot_batch_size: int
     n_eval: int
     flow: Flow
+    target: Target
     smc: SequentialMonteCarloSampler
+    ais_eval: SequentialMonteCarloSampler
     plotter: Callable
     eval_fn: Callable
     log_p_fn: LogProbFn
@@ -249,7 +251,10 @@ def setup_fab_config(cfg: DictConfig, target: Target) -> FABTrainConfig:
                             n_updates_per_smc_forward_pass=n_updates_per_smc_forward_pass,
                             use_64_bit=use_64_bit, w_adjust_clip=w_adjust_clip,
                             eval_fn=eval_fn, use_reverse_kl_loss=use_kl_loss,
-                            logger=logger, seed=cfg.training.seed)
+                            logger=logger, seed=cfg.training.seed,
+                            ais_eval=ais_eval,
+                            target=target
+                            )
 
     return config
 
