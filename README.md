@@ -13,7 +13,7 @@ pip install -e .
  - To pick hyperparameters begin with the defaults inside `experiments/configs` - these should give a solid starting point.
 The most important hyper-parameters to tune are the number of iterations, the batch size, the number of intermediate distributions, the flow architecture, the MCMC transition operator, the learning rate schedule. 
  - For FAB to work well we need SMC to perform reasonably well, where by reasonble we just mean that it produces samples that are
-better than samples from the flow by a noticeable margin (the samples from SMC do NOT have to be closely match the target already at initialization, they just need to be better than the flow). For training efficiency, use the lowest possible number of intermediate distributions, and MCMC steps per transition, while still meeting the aforementioned condition. 
+better than samples from the flow by a noticeable margin (the samples from SMC do NOT have to closely match the target already at initialization, they just need to be better than the flow). For training efficiency, use the lowest possible number of intermediate distributions, and MCMC steps per transition, while still meeting the aforementioned condition. 
 If applying FAB to a new problem, make sure that transition operator works well (e.g. has a well tuned step size).
 Having good plotting tools for visualising samples from the flow and SMC can be very helpful for diagnosing performance.
  - For getting started with a new problem we recommend starting with a small toy version of the problem, getting that to work
